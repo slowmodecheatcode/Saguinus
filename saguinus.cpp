@@ -1,15 +1,16 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
+#include <d3dcompiler.h>
 
 static unsigned int width = 800;
 static unsigned int height = 450;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
-        case WM_DESTROY:{
-            PostQuitMessage(0);
-            return 0;
+        case WM_QUIT:
+        case WM_CLOSE:{
+            exit(0);
             break;
         }
     }
@@ -17,11 +18,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     return DefWindowProc(hwnd, uMsg, wParam, lParam);    
 }
 
-int main(int argc, char** argv){
+int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     WNDCLASS wc = { };
     wc.lpfnWndProc   = WindowProc;
     wc.hInstance     = GetModuleHandle(0);
     wc.lpszClassName = "Saguinus";
+    wc.hCursor = LoadCursorA(0, IDC_ARROW);
 
     RegisterClass(&wc);
     HWND hwnd = CreateWindowEx(
@@ -49,12 +51,11 @@ int main(int argc, char** argv){
 
     DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
     swapChainDesc.Windowed = true;
-    swapChainDesc.BufferCount = 2;
+    swapChainDesc.BufferCount = 1;
     swapChainDesc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SampleDesc.Count = 1;      
     swapChainDesc.SampleDesc.Quality = 0;   
-    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     swapChainDesc.OutputWindow = hwnd;
     
     IDXGISwapChain* swapChain;
@@ -96,22 +97,114 @@ int main(int argc, char** argv){
 
     const float color [] = { 0.5, 0.2, 0.8, 1 };
     d3d11Context->ClearRenderTargetView(renderTargetView, color);
+    
+    d3d11Context->OMSetRenderTargets(1, &renderTargetView, 0);
 
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* pixelBlob;
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+
+    ID3D11VertexShader* vertexShader;
+    ID3D11PixelShader* pixelShader;
+
+    hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel buffer", "ERROR", 0);
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    ID3D11InputLayout* inputLayout;
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &inputLayout);
+    d3d11Context->IASetInputLayout(inputLayout);
+
+    d3d11Context->VSSetShader(vertexShader, 0, 0);
+    d3d11Context->PSSetShader(pixelShader, 0, 0);
+
+    float vertices[] = {
+        -0.5, -0.5, 0.0, 1.0,
+         0.0,  0.5, 0.5, 0.0,
+         0.5, -0.5, 1.0, 1.0,
+    };
+
+    CD3D11_BUFFER_DESC vertexDesc(sizeof(vertices), D3D11_BIND_VERTEX_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA vertexData = {};
+    vertexData.pSysMem = vertices;
+
+    ID3D11Buffer* vertexBuffer;
+    hr = d3d11Device->CreateBuffer(&vertexDesc, &vertexData, &vertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+
+    unsigned int stride = sizeof(float) * 4;
+    unsigned int offset = 0;
+    d3d11Context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+
+    unsigned short indices[] = {
+        0, 1, 2
+    };
+
+    CD3D11_BUFFER_DESC indexDesc(sizeof(indices), D3D11_BIND_INDEX_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA indexData = {};
+    indexData.pSysMem = indices;
+
+    ID3D11Buffer* indexBuffer;
+    hr = d3d11Device->CreateBuffer(&indexDesc, &indexData, &indexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating index buffer", "ERROR", 0);
+
+    d3d11Context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+
+    unsigned char tex[] = {
+        0, 255, 0, 255,     0, 0, 255, 255,
+        0, 0, 255, 255,     0, 255, 0, 255
+    };
+
+    D3D11_SUBRESOURCE_DATA texData = {};
+    texData.pSysMem = tex;
+    texData.SysMemPitch = sizeof(char) * 2;
+
+    ID3D11Texture2D* texture;
+    D3D11_TEXTURE2D_DESC texDesc = {};
+    texDesc.Width = 2;
+    texDesc.Height = 2; 
+    texDesc.MipLevels = 1;
+    texDesc.ArraySize = 1;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DYNAMIC;
+    texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    hr = d3d11Device->CreateTexture2D(&texDesc, &texData, &texture);
+    if(hr != S_OK)  MessageBox(0, "Error creating texture", "ERROR", 0);
+
+    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 1, 0, 0);
+
+    ID3D11ShaderResourceView* resourceView;
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, &resourceView);
+    if(hr != S_OK)  MessageBox(0, "Error shader resource view", "ERROR", 0);
+    d3d11Context->PSSetShaderResources(0, 1, &resourceView);
 
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
     while(isRunning){
         MSG msg = { };
         while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)){
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
             if(msg.wParam == VK_ESCAPE){
                 isRunning = false;
-                break;
             }
-            
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
         d3d11Context->ClearRenderTargetView(renderTargetView, color);
+        d3d11Context->DrawIndexed(3, 0, 0);
         swapChain->Present(1, 0);
     }
 }
