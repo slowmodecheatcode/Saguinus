@@ -1,5 +1,5 @@
 struct VertexInput {
-    float2 position : POSITION;
+    float3 position : POSITION;
     float2 uvCoordinates : UVCOORD;
 };
 
@@ -8,23 +8,22 @@ struct VertexOutput {
     float2 uvCoordinates : UVCOORD;
 };
 
+cbuffer VertexConstants {
+    float4x4 transformMatrix;
+};
+
 struct PixelInput {
     float4 position : SV_POSITION;
     float2 uvCoordinates : UVCOORD;
 };
 
 Texture2D tex : register(t0);
-SamplerState texSampler
-{
-    Filter = COMPARISON_MIN_MAG_MIP_POINT;
-    AddressU = Wrap;
-    AddressV = Wrap;
-};
+SamplerState texSampler : register(s0);
 
 VertexOutput vertexMain(VertexInput input){
     VertexOutput output;
     output.uvCoordinates = input.uvCoordinates;
-    output.position = float4(input.position, 0, 1);
+    output.position = mul(transformMatrix, float4(input.position, 1));
     return output;
 }
 

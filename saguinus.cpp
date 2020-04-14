@@ -1,3 +1,5 @@
+#include "mathematics.h"
+
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -5,6 +7,16 @@
 
 static unsigned int width = 800;
 static unsigned int height = 450;
+
+#define KEY_0 0x30
+#define KEY_A 0x41
+#define KEY_D 0x44
+#define KEY_S 0x53
+#define KEY_W 0x57
+
+
+
+bool keyInputs[128];
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
@@ -117,8 +129,8 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     if(errBlob != 0) MessageBox(0, "Error creating pixel buffer", "ERROR", 0);
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
-        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
     ID3D11InputLayout* inputLayout;
     hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &inputLayout);
@@ -127,10 +139,10 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     d3d11Context->VSSetShader(vertexShader, 0, 0);
     d3d11Context->PSSetShader(pixelShader, 0, 0);
 
-    float vertices[] = {
-        -0.5, -0.5, 0.0, 1.0,
-         0.0,  0.5, 0.5, 0.0,
-         0.5, -0.5, 1.0, 1.0,
+    f32 vertices[] = {
+        -0.5, -0.5, 0.0,        0.0, 1.0,
+         0.0,  0.5, 0.0,        0.5, 0.0,
+         0.5, -0.5, 0.0,        1.0, 1.0,
     };
 
     CD3D11_BUFFER_DESC vertexDesc(sizeof(vertices), D3D11_BIND_VERTEX_BUFFER);
@@ -142,7 +154,7 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     hr = d3d11Device->CreateBuffer(&vertexDesc, &vertexData, &vertexBuffer);
     if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
 
-    unsigned int stride = sizeof(float) * 4;
+    unsigned int stride = sizeof(float) * 5;
     unsigned int offset = 0;
     d3d11Context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 
@@ -161,6 +173,22 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     d3d11Context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
+    Matrix4 modelMatrix = createIdentityMatrix();
+    modelMatrix.m2[3][2] = -5;
+    Matrix4 projectionMatrix = createPerspectiveProjection(70.0, (f32)width / (f32)height, 0.001, 1000.0);
+    Matrix4 transformMatrix = multiply(projectionMatrix, modelMatrix);
+
+    CD3D11_BUFFER_DESC constBufDesc(sizeof(transformMatrix), D3D11_BIND_CONSTANT_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA constBufData = {};
+    constBufData.pSysMem = &transformMatrix;
+
+    ID3D11Buffer* vertexConstBuffer;
+    hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &vertexConstBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating constant buffer", "ERROR", 0);
+
+    d3d11Context->VSSetConstantBuffers(0, 1, &vertexConstBuffer);
+
     unsigned char tex[] = {
         0, 255, 0, 255,     0, 0, 255, 255,
         0, 0, 255, 255,     0, 255, 0, 255
@@ -168,7 +196,7 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     D3D11_SUBRESOURCE_DATA texData = {};
     texData.pSysMem = tex;
-    texData.SysMemPitch = sizeof(char) * 2;
+    texData.SysMemPitch = sizeof(char) * 8;
 
     ID3D11Texture2D* texture;
     D3D11_TEXTURE2D_DESC texDesc = {};
@@ -181,6 +209,19 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     texDesc.SampleDesc.Count = 1;
     texDesc.Usage = D3D11_USAGE_DYNAMIC;
     texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    D3D11_SAMPLER_DESC samplerDescripter = {};
+    samplerDescripter.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    samplerDescripter.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescripter.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    samplerDescripter.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP; 
+    samplerDescripter.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    samplerDescripter.MinLOD = 0;
+    samplerDescripter.MaxLOD = D3D11_FLOAT32_MAX;
+    ID3D11SamplerState *samplerState;
+    d3d11Device->CreateSamplerState(&samplerDescripter, &samplerState);
+    d3d11Context->PSSetSamplers(0, 1, &samplerState);
+
 
     hr = d3d11Device->CreateTexture2D(&texDesc, &texData, &texture);
     if(hr != S_OK)  MessageBox(0, "Error creating texture", "ERROR", 0);
@@ -197,12 +238,37 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     while(isRunning){
         MSG msg = { };
         while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)){
-            if(msg.wParam == VK_ESCAPE){
+            if(keyInputs[VK_ESCAPE]){
                 isRunning = false;
             }
+
+            if(msg.message == WM_KEYDOWN){
+                keyInputs[msg.wParam] = true;
+            }else if(msg.message == WM_KEYUP){
+                keyInputs[msg.wParam] = false;
+            }
+
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        if(keyInputs[KEY_W]){
+            modelMatrix.m2[3][2] += 0.1;
+        }
+        if(keyInputs[KEY_S]){
+            modelMatrix.m2[3][2] -= 0.1;
+        }
+        if(keyInputs[KEY_A]){
+            modelMatrix.m2[3][0] += 0.1;
+        }
+        if(keyInputs[KEY_D]){
+            modelMatrix.m2[3][0] -= 0.1;
+        }
+
+        
+        transformMatrix = multiply(projectionMatrix, modelMatrix);
+        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &transformMatrix, 0, sizeof(transformMatrix));
+
         d3d11Context->ClearRenderTargetView(renderTargetView, color);
         d3d11Context->DrawIndexed(3, 0, 0);
         swapChain->Present(1, 0);
