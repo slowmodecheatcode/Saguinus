@@ -11,12 +11,34 @@ static unsigned int height = 450;
 #define KEY_0 0x30
 #define KEY_A 0x41
 #define KEY_D 0x44
+#define KEY_E 0x45
+#define KEY_Q 0x51
 #define KEY_S 0x53
 #define KEY_W 0x57
-
-
+#define KEY_UP VK_UP
+#define KEY_DOWN VK_DOWN
+#define KEY_LEFT VK_LEFT
+#define KEY_RIGHT VK_RIGHT
 
 bool keyInputs[128];
+
+struct Camera {
+    Matrix4 projection;
+    Matrix4 view;
+    Quaternion orientation;
+    Vector3 position;
+    Vector3 forward;
+    Vector3 up;
+    Vector3 right;
+
+    Camera(){
+        view = Matrix4(1);
+        position = Vector3(0);
+        forward = Vector3(0, 0, 1);
+        up = Vector3(0, 1, 0);
+        right = Vector3(1, 0, 0);
+    }
+};
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
@@ -173,10 +195,12 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     d3d11Context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-    Matrix4 modelMatrix = createIdentityMatrix();
-    modelMatrix.m2[3][2] = -5;
-    Matrix4 projectionMatrix = createPerspectiveProjection(70.0, (f32)width / (f32)height, 0.001, 1000.0);
-    Matrix4 transformMatrix = multiply(projectionMatrix, modelMatrix);
+    Camera camera;
+    camera.position.z -= 5;
+    Matrix4 modelMatrix(1);
+    modelMatrix.m2[3][2] = 0;
+    camera.projection = createPerspectiveProjection(70.0, (f32)width / (f32)height, 0.001, 1000.0);
+    Matrix4 transformMatrix = multiply(camera.projection, modelMatrix);
 
     CD3D11_BUFFER_DESC constBufDesc(sizeof(transformMatrix), D3D11_BIND_CONSTANT_BUFFER);
 
@@ -253,20 +277,46 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
         }
 
         if(keyInputs[KEY_W]){
-            modelMatrix.m2[3][2] += 0.1;
+            camera.position -= camera.forward * 0.1;
         }
         if(keyInputs[KEY_S]){
-            modelMatrix.m2[3][2] -= 0.1;
+            camera.position += camera.forward * 0.1;
         }
         if(keyInputs[KEY_A]){
-            modelMatrix.m2[3][0] += 0.1;
+           camera.position += camera.right * 0.1;
         }
         if(keyInputs[KEY_D]){
-            modelMatrix.m2[3][0] -= 0.1;
+            camera.position -= camera.right * 0.1;
         }
 
-        
-        transformMatrix = multiply(projectionMatrix, modelMatrix);
+        if(keyInputs[KEY_UP]){
+            rotate(&camera.orientation, camera.right, -0.01);
+        }
+        if(keyInputs[KEY_DOWN]){
+            rotate(&camera.orientation, camera.right, 0.01);
+        }
+        if(keyInputs[KEY_LEFT]){
+            rotate(&camera.orientation, camera.up, -0.01);
+        }
+        if(keyInputs[KEY_RIGHT]){
+            rotate(&camera.orientation, camera.up, 0.01);
+        }
+        if(keyInputs[KEY_Q]){
+            rotate(&camera.orientation, camera.forward, 0.01);
+        }
+        if(keyInputs[KEY_E]){
+            rotate(&camera.orientation, camera.forward, -0.01);
+        }
+
+        camera.view = Matrix4(1);
+        Matrix4 camRotation = quaternionToMatrix4(camera.orientation);
+        translate(&camera.view, camera.position);
+        camera.view = camRotation * camera.view;
+        camera.right = Vector3(camera.view.m2[0][0], camera.view.m2[1][0], camera.view.m2[2][0]);
+        camera.up = Vector3(camera.view.m2[1][0], camera.view.m2[1][1], camera.view.m2[1][2]);
+        camera.forward = Vector3(-camera.view.m2[0][2], -camera.view.m2[1][2], -camera.view.m2[2][2]);
+
+        transformMatrix = camera.projection * camera.view * modelMatrix;
         d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &transformMatrix, 0, sizeof(transformMatrix));
 
         d3d11Context->ClearRenderTargetView(renderTargetView, color);
