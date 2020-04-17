@@ -12,7 +12,9 @@ static unsigned int height = 450;
 #define KEY_A 0x41
 #define KEY_D 0x44
 #define KEY_E 0x45
+#define KEY_F 0x46
 #define KEY_Q 0x51
+#define KEY_R 0x52
 #define KEY_S 0x53
 #define KEY_W 0x57
 #define KEY_UP VK_UP
@@ -30,6 +32,8 @@ struct Camera {
     Vector3 forward;
     Vector3 up;
     Vector3 right;
+    f32 moveSpeed;
+    f32 rotateSpeed;
 
     Camera(){
         view = Matrix4(1);
@@ -51,6 +55,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);    
 }
+
+#include <stdio.h>
 
 int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     WNDCLASS wc = { };
@@ -152,19 +158,26 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 6, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
     ID3D11InputLayout* inputLayout;
-    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &inputLayout);
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 3, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &inputLayout);
     d3d11Context->IASetInputLayout(inputLayout);
 
     d3d11Context->VSSetShader(vertexShader, 0, 0);
     d3d11Context->PSSetShader(pixelShader, 0, 0);
 
     f32 vertices[] = {
-        -0.5, -0.5, 0.0,        0.0, 1.0,
-         0.0,  0.5, 0.0,        0.5, 0.0,
-         0.5, -0.5, 0.0,        1.0, 1.0,
+        -0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      0.0, 1.0,
+        -0.5,  0.5, 0.5,        0.0, 0.0, 1.0,      0.0, 0.0,
+         0.5,  0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 0.0,
+         0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 1.0,
+
+        -0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 1.0,
+        -0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 0.0,
+         0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 0.0,
+         0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 1.0,
     };
 
     CD3D11_BUFFER_DESC vertexDesc(sizeof(vertices), D3D11_BIND_VERTEX_BUFFER);
@@ -176,12 +189,13 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     hr = d3d11Device->CreateBuffer(&vertexDesc, &vertexData, &vertexBuffer);
     if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
 
-    unsigned int stride = sizeof(float) * 5;
-    unsigned int offset = 0;
+    u32 stride = sizeof(float) * 8;
+    u32 offset = 0;
     d3d11Context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 
-    unsigned short indices[] = {
-        0, 1, 2
+    u16 indices[] = {
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4
     };
 
     CD3D11_BUFFER_DESC indexDesc(sizeof(indices), D3D11_BIND_INDEX_BUFFER);
@@ -197,6 +211,8 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     Camera camera;
     camera.position.z -= 5;
+    camera.moveSpeed = 3;
+    camera.rotateSpeed = 1;
     Matrix4 modelMatrix(1);
     modelMatrix.m2[3][2] = 0;
     camera.projection = createPerspectiveProjection(70.0, (f32)width / (f32)height, 0.001, 1000.0);
@@ -259,6 +275,10 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
+
+    f32 deltaTime = 0;
+    u64 endTime = 0;
+    u64 startTime = GetTickCount64();
     while(isRunning){
         MSG msg = { };
         while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)){
@@ -277,32 +297,38 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
         }
 
         if(keyInputs[KEY_W]){
-            camera.position -= camera.forward * 0.1;
+            camera.position -= camera.forward * deltaTime * camera.moveSpeed;
         }
         if(keyInputs[KEY_S]){
-            camera.position += camera.forward * 0.1;
+            camera.position += camera.forward * deltaTime * camera.moveSpeed;
         }
         if(keyInputs[KEY_A]){
-           camera.position += camera.right * 0.1;
+           camera.position += camera.right * deltaTime * camera.moveSpeed;
         }
         if(keyInputs[KEY_D]){
-            camera.position -= camera.right * 0.1;
+            camera.position -= camera.right * deltaTime * camera.moveSpeed;
+        }
+        if(keyInputs[KEY_R]){
+           camera.position -= camera.up * deltaTime * camera.moveSpeed;
+        }
+        if(keyInputs[KEY_F]){
+            camera.position += camera.up * deltaTime * camera.moveSpeed;
         }
 
         if(keyInputs[KEY_UP]){
-            rotate(&camera.orientation, camera.right, -0.01);
+            rotate(&camera.orientation, camera.right, -deltaTime * camera.rotateSpeed);
         }
         if(keyInputs[KEY_DOWN]){
-            rotate(&camera.orientation, camera.right, 0.01);
+            rotate(&camera.orientation, camera.right, deltaTime * camera.rotateSpeed);
         }
         if(keyInputs[KEY_LEFT]){
-            rotate(&camera.orientation, camera.up, -0.01);
+            rotate(&camera.orientation, camera.up, -deltaTime * camera.rotateSpeed);
         }
         if(keyInputs[KEY_RIGHT]){
-            rotate(&camera.orientation, camera.up, 0.01);
+            rotate(&camera.orientation, camera.up, deltaTime * camera.rotateSpeed);
         }
         if(keyInputs[KEY_Q]){
-            rotate(&camera.orientation, camera.forward, 0.01);
+            rotate(&camera.orientation, camera.forward, 0.01 * camera.rotateSpeed);
         }
         if(keyInputs[KEY_E]){
             rotate(&camera.orientation, camera.forward, -0.01);
@@ -320,7 +346,11 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
         d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &transformMatrix, 0, sizeof(transformMatrix));
 
         d3d11Context->ClearRenderTargetView(renderTargetView, color);
-        d3d11Context->DrawIndexed(3, 0, 0);
+        d3d11Context->DrawIndexed(sizeof(indices) / sizeof(u16), 0, 0);
         swapChain->Present(1, 0);
+
+        endTime = GetTickCount64();
+        deltaTime = (f32)(endTime - startTime) / 1000.0f;
+        startTime = endTime;
     }
 }
