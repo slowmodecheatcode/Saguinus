@@ -138,7 +138,42 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     const float color [] = { 0.5, 0.2, 0.8, 1 };
     d3d11Context->ClearRenderTargetView(renderTargetView, color);
     
-    d3d11Context->OMSetRenderTargets(1, &renderTargetView, 0);
+    ID3D11Texture2D* depthTexture = 0;
+    D3D11_TEXTURE2D_DESC depthTexDesc = {};
+    depthTexDesc.Width = width;
+    depthTexDesc.Height = height;
+    depthTexDesc.MipLevels = 1;
+    depthTexDesc.ArraySize = 1;
+    depthTexDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthTexDesc.SampleDesc.Count = 1;
+    depthTexDesc.SampleDesc.Quality = 0;
+    depthTexDesc.Usage = D3D11_USAGE_DEFAULT;
+    depthTexDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthTexDesc.CPUAccessFlags = 0;
+    depthTexDesc.MiscFlags = 0;
+    hr = d3d11Device->CreateTexture2D(&depthTexDesc, 0, &depthTexture);
+    if(hr != S_OK)  MessageBox(0, "Error creating depth texture", "ERROR", 0);
+
+    D3D11_DEPTH_STENCIL_DESC depthStenDesc = {};
+    depthStenDesc.DepthEnable = true;
+    depthStenDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    depthStenDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+    ID3D11DepthStencilState * depthStencilState;
+    d3d11Device->CreateDepthStencilState(&depthStenDesc, &depthStencilState);
+
+    d3d11Context->OMSetDepthStencilState(depthStencilState, 1);
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC depthStenViewDesc = {};
+    depthStenViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStenViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    depthStenViewDesc.Texture2D.MipSlice = 0;
+
+    ID3D11DepthStencilView* depthStencilView;
+    hr = d3d11Device->CreateDepthStencilView(depthTexture,  &depthStenViewDesc, &depthStencilView);
+    if(hr != S_OK)  MessageBox(0, "Error creating depth stencil view texture", "ERROR", 0);
+
+    d3d11Context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
 
     ID3DBlob* vertexBlob; 
     ID3DBlob* pixelBlob;
@@ -174,10 +209,30 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
          0.5,  0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 0.0,
          0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 1.0,
 
-        -0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 1.0,
-        -0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 0.0,
-         0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 0.0,
-         0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 1.0,
+        -0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 1.0,
+        -0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 0.0,
+         0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 0.0,
+         0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 1.0,
+
+        -0.5,  0.5,  0.5,       0.0,  1.0,  0.0,    0.0, 1.0,
+        -0.5,  0.5, -0.5,       0.0,  1.0,  0.0,    0.0, 0.0,
+         0.5,  0.5, -0.5,       0.0,  1.0,  0.0,    1.0, 0.0,
+         0.5,  0.5,  0.5,       0.0,  1.0,  0.0,    1.0, 1.0,
+
+        -0.5, -0.5, -0.5,       0.0,  -1.0,  0.0,    0.0, 1.0,
+        -0.5, -0.5,  0.5,       0.0,  -1.0,  0.0,    0.0, 0.0,
+         0.5, -0.5,  0.5,       0.0,  -1.0,  0.0,    1.0, 0.0,
+         0.5, -0.5, -0.5,       0.0,  -1.0,  0.0,    1.0, 1.0,
+
+        -0.5, -0.5, -0.5,       -1.0,  0.0,  0.0,    0.0, 1.0,
+        -0.5,  0.5, -0.5,       -1.0,  0.0,  0.0,    0.0, 0.0,
+        -0.5,  0.5,  0.5,       -1.0,  0.0,  0.0,    1.0, 0.0,
+        -0.5, -0.5,  0.5,       -1.0,  0.0,  0.0,    1.0, 1.0,
+
+         0.5, -0.5,  0.5,        1.0,  0.0,  0.0,    0.0, 1.0,
+         0.5,  0.5,  0.5,        1.0,  0.0,  0.0,    0.0, 0.0,
+         0.5,  0.5, -0.5,        1.0,  0.0,  0.0,    1.0, 0.0,
+         0.5, -0.5, -0.5,        1.0,  0.0,  0.0,    1.0, 1.0,
     };
 
     CD3D11_BUFFER_DESC vertexDesc(sizeof(vertices), D3D11_BIND_VERTEX_BUFFER);
@@ -195,7 +250,11 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
     u16 indices[] = {
         0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4
+        4, 5, 6, 6, 7, 4,
+        8, 9, 10, 10, 11, 8,
+        12, 13, 14, 14, 15, 12,
+        16, 17, 18, 18, 19, 16,
+        20, 21, 22, 22, 23, 20
     };
 
     CD3D11_BUFFER_DESC indexDesc(sizeof(indices), D3D11_BIND_INDEX_BUFFER);
@@ -218,7 +277,12 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     camera.projection = createPerspectiveProjection(70.0, (f32)width / (f32)height, 0.001, 1000.0);
     Matrix4 transformMatrix = multiply(camera.projection, modelMatrix);
 
-    CD3D11_BUFFER_DESC constBufDesc(sizeof(transformMatrix), D3D11_BIND_CONSTANT_BUFFER);
+    struct VertexConstants {
+        Matrix4 modelMatrix;
+        Matrix4 cameraMatrix;
+    } vertexContants;
+
+    CD3D11_BUFFER_DESC constBufDesc(sizeof(VertexConstants), D3D11_BIND_CONSTANT_BUFFER);
 
     D3D11_SUBRESOURCE_DATA constBufData = {};
     constBufData.pSysMem = &transformMatrix;
@@ -339,13 +403,16 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
         translate(&camera.view, camera.position);
         camera.view = camRotation * camera.view;
         camera.right = Vector3(camera.view.m2[0][0], camera.view.m2[1][0], camera.view.m2[2][0]);
-        camera.up = Vector3(camera.view.m2[1][0], camera.view.m2[1][1], camera.view.m2[1][2]);
+        camera.up = Vector3(camera.view.m2[0][1], camera.view.m2[1][1], camera.view.m2[2][1]);
         camera.forward = Vector3(-camera.view.m2[0][2], -camera.view.m2[1][2], -camera.view.m2[2][2]);
 
-        transformMatrix = camera.projection * camera.view * modelMatrix;
-        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &transformMatrix, 0, sizeof(transformMatrix));
+        // transformMatrix = camera.projection * camera.view * modelMatrix;
+        vertexContants.cameraMatrix = camera.projection * camera.view;
+        vertexContants.modelMatrix = modelMatrix;
+        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &vertexContants, 0, sizeof(vertexContants));
 
         d3d11Context->ClearRenderTargetView(renderTargetView, color);
+        d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         d3d11Context->DrawIndexed(sizeof(indices) / sizeof(u16), 0, 0);
         swapChain->Present(1, 0);
 
@@ -353,4 +420,6 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
         deltaTime = (f32)(endTime - startTime) / 1000.0f;
         startTime = endTime;
     }
+
+    return 0;
 }

@@ -1,0 +1,3 @@
+improve lighting
+implment mouse look
+replace math.h's trig functions
