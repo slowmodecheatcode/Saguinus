@@ -16,6 +16,14 @@ cbuffer VertexConstants {
     float4x4 cameraMatrix;
 };
 
+cbuffer PixelConstants {
+    float3 cameraPosition;
+    float3 lightPosition;
+    float3 ambient;
+    float3 diffuse;
+    float3 specular;
+};
+
 struct PixelInput {
     float4 position : SV_POSITION;
     float3 fragmentPostion : FRAG_POS;
@@ -36,13 +44,10 @@ VertexOutput vertexMain(VertexInput input){
 }
 
 float4 pixelMain(PixelInput input) : SV_TARGET {
-    float3 ambient = float3(0.2, 0.2, 0.2);
-    float3 lightPosition = float3(1, 5, 2);
-
     float3 lightDirection = normalize(lightPosition - input.fragmentPostion);
-    float3 diffuse = max(dot(lightDirection, input.fragmentNormal), 0);
-
+    float3 diffuseAmount = max(dot(lightDirection, input.fragmentNormal), 0);
+    diffuseAmount *= diffuse;
     float4 color = tex.Sample(texSampler, input.uvCoordinates);
-    return float4(ambient + diffuse, 1.0) * color;
+    return float4(ambient + diffuseAmount, 1.0) * color;
 }
 

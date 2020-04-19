@@ -126,6 +126,12 @@ static Matrix4 quaternionToMatrix4(Quaternion q){
     return m;
 }
 
+static void scale(Matrix4* m, f32 amt){
+    m->m2[0][0] *= amt;
+    m->m2[1][1] *= amt;
+    m->m2[2][2] *= amt;
+}
+
 static f32 length(Quaternion q){
     return sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
 }

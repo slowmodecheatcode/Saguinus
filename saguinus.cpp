@@ -5,8 +5,10 @@
 #include <dxgi.h>
 #include <d3dcompiler.h>
 
-static unsigned int width = 800;
-static unsigned int height = 450;
+static u32 width = 800;
+static u32 height = 450;
+static s32 halfWidth = width * 0.5;
+static s32 halfHeight = height * 0.5;
 
 #define KEY_0 0x30
 #define KEY_A 0x41
@@ -22,7 +24,12 @@ static unsigned int height = 450;
 #define KEY_LEFT VK_LEFT
 #define KEY_RIGHT VK_RIGHT
 
-bool keyInputs[128];
+static bool keyInputs[128];
+
+static POINT mousePosition;
+static POINT screenCenter;
+
+static bool updateCamera = false;
 
 struct Camera {
     Matrix4 projection;
@@ -34,6 +41,7 @@ struct Camera {
     Vector3 right;
     f32 moveSpeed;
     f32 rotateSpeed;
+    f32 mouseSensitivity;
 
     Camera(){
         view = Matrix4(1);
@@ -44,6 +52,24 @@ struct Camera {
     }
 };
 
+struct VertexConstants {
+        Matrix4 modelMatrix;
+        Matrix4 cameraMatrix;
+} vertexConstants;
+
+struct PixelConstants {
+    Vector3 cameraPosition;
+    f32 pad1;
+    Vector3 lightPosition;
+    f32 pad2;
+    Vector3 ambient;
+    f32 pad3;
+    Vector3 diffuse;
+    f32 pad4;
+    Vector3 specular;
+    f32 pad5;
+} pixelConstants;
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
         case WM_QUIT:
@@ -51,14 +77,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             exit(0);
             break;
         }
+        case WM_MOUSEMOVE:{
+            GetCursorPos(&mousePosition);
+            ScreenToClient(hwnd, &mousePosition);
+            updateCamera = true;
+            break;
+        }
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);    
 }
 
-#include <stdio.h>
-
-int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
+int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     WNDCLASS wc = { };
     wc.lpfnWndProc   = WindowProc;
     wc.hInstance     = GetModuleHandle(0);
@@ -272,26 +302,36 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     camera.position.z -= 5;
     camera.moveSpeed = 3;
     camera.rotateSpeed = 1;
+    camera.mouseSensitivity = 0.1;
     Matrix4 modelMatrix(1);
     modelMatrix.m2[3][2] = 0;
     camera.projection = createPerspectiveProjection(70.0, (f32)width / (f32)height, 0.001, 1000.0);
     Matrix4 transformMatrix = multiply(camera.projection, modelMatrix);
 
-    struct VertexConstants {
-        Matrix4 modelMatrix;
-        Matrix4 cameraMatrix;
-    } vertexContants;
+    pixelConstants.lightPosition = Vector3(-10, 0, 3);
+    pixelConstants.ambient = Vector3(0.2);
+    pixelConstants.diffuse = Vector3(1);
 
     CD3D11_BUFFER_DESC constBufDesc(sizeof(VertexConstants), D3D11_BIND_CONSTANT_BUFFER);
 
     D3D11_SUBRESOURCE_DATA constBufData = {};
-    constBufData.pSysMem = &transformMatrix;
+    constBufData.pSysMem = &vertexConstants;
 
     ID3D11Buffer* vertexConstBuffer;
     hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &vertexConstBuffer);
-    if(hr != S_OK)  MessageBox(0, "Error creating constant buffer", "ERROR", 0);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex constant buffer", "ERROR", 0);
 
     d3d11Context->VSSetConstantBuffers(0, 1, &vertexConstBuffer);
+
+    CD3D11_BUFFER_DESC pixConstBufDesc(sizeof(pixelConstants), D3D11_BIND_CONSTANT_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
+    pixConstBufData.pSysMem = &pixelConstants;
+
+    ID3D11Buffer* pixelConstBuffer;
+    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &pixelConstBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating pixel constant buffer", "ERROR", 0);
+    d3d11Context->PSSetConstantBuffers(0, 1, &pixelConstBuffer);
 
     unsigned char tex[] = {
         0, 255, 0, 255,     0, 0, 255, 255,
@@ -337,6 +377,14 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
     if(hr != S_OK)  MessageBox(0, "Error shader resource view", "ERROR", 0);
     d3d11Context->PSSetShaderResources(0, 1, &resourceView);
 
+    Matrix4 lightModel(1);
+    scale(&lightModel, 0.25);
+
+    screenCenter.x = halfWidth;
+    screenCenter.y = halfHeight;
+    ClientToScreen(hwnd, &screenCenter);
+    SetCursorPos(screenCenter.x, screenCenter.y);
+    ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
 
@@ -358,6 +406,15 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
 
             TranslateMessage(&msg);
             DispatchMessage(&msg);
+        }
+
+        if(updateCamera){
+            f32 xDif = mousePosition.x - halfWidth;
+            f32 yDif = mousePosition.y - halfHeight;
+            rotate(&camera.orientation, camera.up, deltaTime * xDif * camera.mouseSensitivity);
+            rotate(&camera.orientation, camera.right, deltaTime * yDif * camera.mouseSensitivity);
+            SetCursorPos(screenCenter.x, screenCenter.y);
+            updateCamera = false;
         }
 
         if(keyInputs[KEY_W]){
@@ -392,11 +449,14 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
             rotate(&camera.orientation, camera.up, deltaTime * camera.rotateSpeed);
         }
         if(keyInputs[KEY_Q]){
-            rotate(&camera.orientation, camera.forward, 0.01 * camera.rotateSpeed);
+            rotate(&camera.orientation, camera.forward, deltaTime * camera.rotateSpeed);
         }
         if(keyInputs[KEY_E]){
-            rotate(&camera.orientation, camera.forward, -0.01);
+            rotate(&camera.orientation, camera.forward, -deltaTime * camera.rotateSpeed);
         }
+
+        d3d11Context->ClearRenderTargetView(renderTargetView, color);
+        d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
 
         camera.view = Matrix4(1);
         Matrix4 camRotation = quaternionToMatrix4(camera.orientation);
@@ -407,13 +467,23 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int){
         camera.forward = Vector3(-camera.view.m2[0][2], -camera.view.m2[1][2], -camera.view.m2[2][2]);
 
         // transformMatrix = camera.projection * camera.view * modelMatrix;
-        vertexContants.cameraMatrix = camera.projection * camera.view;
-        vertexContants.modelMatrix = modelMatrix;
-        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &vertexContants, 0, sizeof(vertexContants));
+        vertexConstants.cameraMatrix = camera.projection * camera.view;
+        vertexConstants.modelMatrix = modelMatrix;
 
-        d3d11Context->ClearRenderTargetView(renderTargetView, color);
-        d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
+        pixelConstants.cameraPosition = camera.position;
+        pixelConstants.lightPosition.x += deltaTime;
+
+        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &vertexConstants, 0, sizeof(vertexConstants));
+        d3d11Context->UpdateSubresource(pixelConstBuffer, 0, 0, &pixelConstants, 0, sizeof(pixelConstants));
         d3d11Context->DrawIndexed(sizeof(indices) / sizeof(u16), 0, 0);
+
+        vertexConstants.modelMatrix = lightModel;
+        vertexConstants.modelMatrix.m2[3][0] = pixelConstants.lightPosition.x;
+        vertexConstants.modelMatrix.m2[3][1] = pixelConstants.lightPosition.y;
+        vertexConstants.modelMatrix.m2[3][2] = pixelConstants.lightPosition.z;
+        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &vertexConstants, 0, sizeof(vertexConstants));
+        d3d11Context->DrawIndexed(sizeof(indices) / sizeof(u16), 0, 0);
+
         swapChain->Present(1, 0);
 
         endTime = GetTickCount64();
