@@ -1,3 +1,5 @@
+#pragma once
+
 #include "utilities.h"
 
 #include <math.h>
@@ -12,6 +14,19 @@ union Vector3 {
     Vector3(){}
     Vector3(f32 v) : x(v), y(v), z(v){}
     Vector3(f32 x, f32 y, f32 z) : x(x), y(y), z(z){}
+};
+
+union Vector4 {
+    f32 v[4];
+    struct {
+        f32 x;
+        f32 y;
+        f32 z;
+        f32 w;
+    };
+    Vector4(){}
+    Vector4(f32 v) : x(v), y(v), z(v), w(v){}
+    Vector4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w){}
 };
 
 union Quaternion {
