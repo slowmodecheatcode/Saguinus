@@ -39,21 +39,183 @@ static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPi
             texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
             break;
         }
+        default: {
+            MessageBox(0, "Bits per pixel when creating texture must be 1, 2, or 4", "ERROR", 0);
+            exit(1);
+        }
     }
     texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     texDesc.SampleDesc.Count = 1;
     texDesc.Usage = D3D11_USAGE_DYNAMIC;
     texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-    HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, &texData, &tex.texture);
+    ID3D11Texture2D* texture;
+    HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, &texData, &texture);
     checkError(hr, "Error creating texture");
 
-    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(tex.texture, D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 1, 0, 0);
+    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 1, 0, 0);
 
-    hr = d3d11Device->CreateShaderResourceView(tex.texture, &resViewDesc, &tex.resourceView);
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, &tex.resourceView);
     checkError(hr, "Error shader resource view");
+    texture->Release();
 
     return tex;
+}
+
+static void initializeTexturedMeshRenderer(){
+    texturedMeshRenderer.vertexDataUsed = 0;
+    texturedMeshRenderer.indexDataUsed = 0;
+
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* pixelBlob;
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+
+    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &texturedMeshRenderer.vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &texturedMeshRenderer.pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 6, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 3, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &texturedMeshRenderer.inputLayout);
+    checkError(hr, "Could not create input layout");
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    CD3D11_BUFFER_DESC vertexDesc(2048, D3D11_BIND_VERTEX_BUFFER);
+
+    f32 tempData = 0;
+    D3D11_SUBRESOURCE_DATA bufferData = {};
+    bufferData.pSysMem = &tempData;
+
+    hr = d3d11Device->CreateBuffer(&vertexDesc, &bufferData, &texturedMeshRenderer.vertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+
+    texturedMeshRenderer.vertexStride = sizeof(float) * 8;
+    texturedMeshRenderer.vertexOffset = 0;
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    CD3D11_BUFFER_DESC indexDesc(2048, D3D11_BIND_INDEX_BUFFER);
+ 
+
+    hr = d3d11Device->CreateBuffer(&indexDesc, &bufferData, &texturedMeshRenderer.indexBuffer);
+    checkError(hr, "Error creating index buffer");
+
+
+    CD3D11_BUFFER_DESC constBufDesc(sizeof(texturedMeshRenderer.vertexConstants), D3D11_BIND_CONSTANT_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA constBufData = {};
+    constBufData.pSysMem = &texturedMeshRenderer.vertexConstants;
+
+    hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &texturedMeshRenderer.vertexConstBuffer);
+    checkError(hr, "Error creating vertex constant buffer");
+
+
+    CD3D11_BUFFER_DESC pixConstBufDesc(sizeof(texturedMeshRenderer.pixelConstants), D3D11_BIND_CONSTANT_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
+    pixConstBufData.pSysMem = &texturedMeshRenderer.pixelConstants;
+
+    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &texturedMeshRenderer.pixelConstBuffer);
+    checkError(hr, "Error creating pixel constant buffer");
+}
+
+static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
+    u32 totalIndices = indexDataSize / sizeof(u16);
+    u32 totalVertsInBuffer = texturedMeshRenderer.vertexDataUsed / (sizeof(f32) * 8);
+
+    TexturedMesh mesh;
+    D3D11_BOX box;
+    box.left = texturedMeshRenderer.vertexDataUsed;
+    box.top = 0;
+    box.front = 0;
+    box.right = box.left + vertexDataSize;
+    box.bottom = 1;
+    box.back = 1;
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexBuffer, 0, &box, vertexData, 0, 0);
+
+    box.left = texturedMeshRenderer.indexDataUsed;
+    box.top = 0;
+    box.front = 0;
+    box.right = box.left + indexDataSize;
+    box.bottom = 1;
+    box.back = 1;
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.indexBuffer, 0, &box, indexData, 0, 0);
+
+    u32 indexOffset = texturedMeshRenderer.indexDataUsed / sizeof(u16);
+    mesh.indexCount = totalIndices;
+    mesh.indexOffset = indexOffset;
+    texturedMeshRenderer.indexDataUsed += indexDataSize;
+    texturedMeshRenderer.vertexDataUsed += vertexDataSize;
+
+    mesh.indexCount = totalIndices;
+    mesh.indexOffset = indexOffset;
+    mesh.indexAddon = totalVertsInBuffer;
+    mesh.position = Vector3(0);
+    mesh.scale = Vector3(1);
+
+    return mesh;
+}
+
+//reword me to render multiple meshes
+static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
+    d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
+    d3d11Context->PSSetShaderResources(0, 1, &mesh->texture.resourceView);
+
+    texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(mesh->position, mesh->scale, mesh->orientation);
+    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+
+    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
+
+    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
+    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
+    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
+    texturedMeshRenderer.pixelConstants.specular = light->specular;
+
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
+
+    d3d11Context->DrawIndexed(mesh->indexCount, mesh->indexOffset, mesh->indexAddon);
+}
+
+static void renderTexturedMeshes(TexturedMesh* meshes, u32 totalMeshes, Camera* camera, PointLight* light){
+    d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
+
+    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+
+    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
+    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
+    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
+    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
+    texturedMeshRenderer.pixelConstants.specular = light->specular;
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
+
+    for(u32 i = 0; i < totalMeshes; i++){
+        d3d11Context->PSSetShaderResources(0, 1, &meshes[i].texture.resourceView);
+        texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(meshes[i].position, meshes[i].scale, meshes[i].orientation);
+        d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
+
+        d3d11Context->DrawIndexed(meshes[i].indexCount, meshes[i].indexOffset, meshes[i].indexAddon);
+    }
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -177,130 +339,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     d3d11Context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
 
-    ID3DBlob* vertexBlob; 
-    ID3DBlob* pixelBlob;
-    ID3DBlob* errBlob = 0;               
-    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
-    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
-    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
-    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
-
-    ID3D11VertexShader* vertexShader;
-    ID3D11PixelShader* pixelShader;
-
-    hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &vertexShader);
-    if(errBlob != 0) MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
-    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &pixelShader);
-    if(errBlob != 0) MessageBox(0, "Error creating pixel buffer", "ERROR", 0);
-
-    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 6, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    };
-    ID3D11InputLayout* inputLayout;
-    hr = d3d11Device->CreateInputLayout(layoutDesc, 3, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &inputLayout);
-    d3d11Context->IASetInputLayout(inputLayout);
-
-    d3d11Context->VSSetShader(vertexShader, 0, 0);
-    d3d11Context->PSSetShader(pixelShader, 0, 0);
-
-    f32 vertices[] = {
-        -0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      0.0, 1.0,
-        -0.5,  0.5, 0.5,        0.0, 0.0, 1.0,      0.0, 0.0,
-         0.5,  0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 0.0,
-         0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 1.0,
-
-        -0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 1.0,
-        -0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     0.0, 0.0,
-         0.5, -0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 0.0,
-         0.5,  0.5, -0.5,       0.0, 0.0, -1.0,     1.0, 1.0,
-
-        -0.5,  0.5,  0.5,       0.0,  1.0,  0.0,    0.0, 1.0,
-        -0.5,  0.5, -0.5,       0.0,  1.0,  0.0,    0.0, 0.0,
-         0.5,  0.5, -0.5,       0.0,  1.0,  0.0,    1.0, 0.0,
-         0.5,  0.5,  0.5,       0.0,  1.0,  0.0,    1.0, 1.0,
-
-        -0.5, -0.5, -0.5,       0.0,  -1.0,  0.0,    0.0, 1.0,
-        -0.5, -0.5,  0.5,       0.0,  -1.0,  0.0,    0.0, 0.0,
-         0.5, -0.5,  0.5,       0.0,  -1.0,  0.0,    1.0, 0.0,
-         0.5, -0.5, -0.5,       0.0,  -1.0,  0.0,    1.0, 1.0,
-
-        -0.5, -0.5, -0.5,       -1.0,  0.0,  0.0,    0.0, 1.0,
-        -0.5,  0.5, -0.5,       -1.0,  0.0,  0.0,    0.0, 0.0,
-        -0.5,  0.5,  0.5,       -1.0,  0.0,  0.0,    1.0, 0.0,
-        -0.5, -0.5,  0.5,       -1.0,  0.0,  0.0,    1.0, 1.0,
-
-         0.5, -0.5,  0.5,        1.0,  0.0,  0.0,    0.0, 1.0,
-         0.5,  0.5,  0.5,        1.0,  0.0,  0.0,    0.0, 0.0,
-         0.5,  0.5, -0.5,        1.0,  0.0,  0.0,    1.0, 0.0,
-         0.5, -0.5, -0.5,        1.0,  0.0,  0.0,    1.0, 1.0,
-    };
-
-    CD3D11_BUFFER_DESC vertexDesc(sizeof(vertices), D3D11_BIND_VERTEX_BUFFER);
-
-    D3D11_SUBRESOURCE_DATA vertexData = {};
-    vertexData.pSysMem = vertices;
-
-    ID3D11Buffer* vertexBuffer;
-    hr = d3d11Device->CreateBuffer(&vertexDesc, &vertexData, &vertexBuffer);
-    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
-
-    u32 stride = sizeof(float) * 8;
-    u32 offset = 0;
-    d3d11Context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
-
-    u16 indices[] = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4,
-        8, 9, 10, 10, 11, 8,
-        12, 13, 14, 14, 15, 12,
-        16, 17, 18, 18, 19, 16,
-        20, 21, 22, 22, 23, 20
-    };
-
-    CD3D11_BUFFER_DESC indexDesc(sizeof(indices), D3D11_BIND_INDEX_BUFFER);
-
-    D3D11_SUBRESOURCE_DATA indexData = {};
-    indexData.pSysMem = indices;
-
-    ID3D11Buffer* indexBuffer;
-    hr = d3d11Device->CreateBuffer(&indexDesc, &indexData, &indexBuffer);
-    if(hr != S_OK)  MessageBox(0, "Error creating index buffer", "ERROR", 0);
-
-    d3d11Context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-    CD3D11_BUFFER_DESC constBufDesc(sizeof(VertexConstants), D3D11_BIND_CONSTANT_BUFFER);
-
-    D3D11_SUBRESOURCE_DATA constBufData = {};
-    constBufData.pSysMem = &vertexConstants;
-
-    ID3D11Buffer* vertexConstBuffer;
-    hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &vertexConstBuffer);
-    if(hr != S_OK)  MessageBox(0, "Error creating vertex constant buffer", "ERROR", 0);
-
-    d3d11Context->VSSetConstantBuffers(0, 1, &vertexConstBuffer);
-
-    CD3D11_BUFFER_DESC pixConstBufDesc(sizeof(pixelConstants), D3D11_BIND_CONSTANT_BUFFER);
-
-    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
-    pixConstBufData.pSysMem = &pixelConstants;
-
-    ID3D11Buffer* pixelConstBuffer;
-    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &pixelConstBuffer);
-    if(hr != S_OK)  MessageBox(0, "Error creating pixel constant buffer", "ERROR", 0);
-    d3d11Context->PSSetConstantBuffers(0, 1, &pixelConstBuffer);
-
-    u8 tex[] = {
-        0, 255, 0, 255,     0, 0, 255, 255,
-        0, 0, 255, 255,     0, 255, 0, 255
-    };
-    Texture2D texture = createTexture2D(tex, 2, 2, 4);
-
-    u8 tex2[] {255, 255, 255, 255};
-    Texture2D lightTexture = createTexture2D(tex2, 1, 1, 4);
-
-
     D3D11_SAMPLER_DESC samplerDescripter = {};
     samplerDescripter.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     samplerDescripter.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -309,30 +347,65 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     samplerDescripter.ComparisonFunc = D3D11_COMPARISON_NEVER;
     samplerDescripter.MinLOD = 0;
     samplerDescripter.MaxLOD = D3D11_FLOAT32_MAX;
-    ID3D11SamplerState *samplerState;
-    d3d11Device->CreateSamplerState(&samplerDescripter, &samplerState);
-    d3d11Context->PSSetSamplers(0, 1, &samplerState);
+    d3d11Device->CreateSamplerState(&samplerDescripter, &pointSampler);
+    samplerDescripter.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    d3d11Device->CreateSamplerState(&samplerDescripter, &linearSampler);
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
 
-    D3D11_SUBRESOURCE_DATA texData = {};
-    texData.pSysMem = tex;
-    texData.SysMemPitch = sizeof(char) * 8;
+    initializeTexturedMeshRenderer();
 
+    u8 tex[] = {
+        0, 255, 0, 255,     0, 0, 255, 255,
+        0, 0, 255, 255,     0, 255, 0, 255
+    };
+    Texture2D texture = createTexture2D(tex, 2, 2, 4);
+    u8 tex2[] {255, 255, 255, 255};
+    Texture2D lightTexture = createTexture2D(tex2, 1, 1, 4);
+
+    TexturedMesh cubeMesh = createTexturedMesh(texturedCubeVerticesWithNormals, sizeof(texturedCubeVerticesWithNormals),
+                                               cubeIndices, sizeof(cubeIndices));
+    cubeMesh.texture = texture;
+
+    const u32 MESH_COUNT = 1000;
+
+    TexturedMesh meshes[MESH_COUNT];
+    u32 seed = 1;
+    for(u32 i = 0; i < MESH_COUNT; i++){
+        meshes[i] = cubeMesh;
+        seed = xorshift(seed);
+        meshes[i].position.x = (seed % 100);
+        meshes[i].position.x -= 50;
+        seed = xorshift(seed);
+        meshes[i].position.y = (seed % 100);
+        meshes[i].position.y -= 50;
+        seed = xorshift(seed);
+        meshes[i].position.z = (seed % 100);
+        meshes[i].position.z -= 50;
+    }
+
+    f32 verts[] = {
+        -0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      0.0, 1.0,
+         0.0,  0.5, 0.5,        0.0, 0.0, 1.0,      0.5, 0.0,
+         0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 1.0,
+    };
+    u16 inds[] = {
+        0, 1, 2
+    };
+    TexturedMesh triMesh = createTexturedMesh(verts, sizeof(verts), inds, sizeof(inds));
+    triMesh.texture = lightTexture;
+    triMesh.position.z = 1.5;
+    
     Camera camera;
     camera.position.z -= 5;
     camera.moveSpeed = 3;
     camera.rotateSpeed = 1;
     camera.mouseSensitivity = 0.1;
-    Matrix4 modelMatrix(1);
-    modelMatrix.m2[3][2] = 0;
+
     camera.projection = createPerspectiveProjection(70.0, (f32)windowWidth / (f32)windowHeight, 0.001, 1000.0);
-    Matrix4 transformMatrix = multiply(camera.projection, modelMatrix);
 
-    pixelConstants.lightPosition = Vector3(-10, 0, 3);
-    pixelConstants.ambient = Vector3(0.2);
-    pixelConstants.diffuse = Vector3(1);
-
-    Matrix4 lightModel(1);
-    scale(&lightModel, 0.25);
+    PointLight light;
+    light.position = Vector3(5, 5, -3);
+    light.diffuse = Vector3(1, 1, 1);
 
     screenCenter.x = halfWindowWidth;
     screenCenter.y = halfWindowHeight;
@@ -409,29 +482,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             rotate(&camera.orientation, camera.forward, -deltaTime * camera.rotateSpeed);
         }
 
+        updateCameraView(&camera);
+
         d3d11Context->ClearRenderTargetView(renderTargetView, clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
 
-        updateCameraView(&camera);
-
-        vertexConstants.cameraMatrix = camera.projection * camera.view;
-        vertexConstants.modelMatrix = modelMatrix;
-
-        pixelConstants.cameraPosition = camera.position;
-        pixelConstants.lightPosition.x += deltaTime;
-
-        d3d11Context->PSSetShaderResources(0, 1, &texture.resourceView);
-        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &vertexConstants, 0, sizeof(vertexConstants));
-        d3d11Context->UpdateSubresource(pixelConstBuffer, 0, 0, &pixelConstants, 0, sizeof(pixelConstants));
-        d3d11Context->DrawIndexed(sizeof(indices) / sizeof(u16), 0, 0);
-
-        vertexConstants.modelMatrix = lightModel;
-        vertexConstants.modelMatrix.m2[3][0] = pixelConstants.lightPosition.x;
-        vertexConstants.modelMatrix.m2[3][1] = pixelConstants.lightPosition.y;
-        vertexConstants.modelMatrix.m2[3][2] = pixelConstants.lightPosition.z;
-        d3d11Context->PSSetShaderResources(0, 1, &lightTexture.resourceView);
-        d3d11Context->UpdateSubresource(vertexConstBuffer, 0, 0, &vertexConstants, 0, sizeof(vertexConstants));
-        d3d11Context->DrawIndexed(sizeof(indices) / sizeof(u16), 0, 0);
+        light.position = -camera.position;
+        //rendering is done here
+        renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
 
         swapChain->Present(1, 0);
 

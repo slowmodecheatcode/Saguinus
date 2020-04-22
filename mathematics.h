@@ -54,6 +54,52 @@ union Matrix4 {
     }
 };
 
+static Vector3 add(Vector3& v1, Vector3& v2);
+static Matrix4 multiply(Matrix4& m1, Matrix4& m2);
+static Vector3 scale(Vector3& v1, f32 amt);
+
+static u32 xorshift(u32 x){
+    x ^= x << 13;
+	x ^= x >> 7;
+	x ^= x << 17;
+    return x;
+}
+
+// static u64 xorshift(u64 x){
+//     x ^= x << 13;
+// 	x ^= x >> 7;
+// 	x ^= x << 17;
+//     return x;
+// }
+
+static Matrix4 operator*(Matrix4& m1, Matrix4& m2){
+    return multiply(m1, m2);
+}
+
+static Vector3 operator+(Vector3& v1, Vector3& v2){
+    return add(v1, v2);
+}
+
+static void operator+=(Vector3& v1, Vector3& v2){
+    v1.x += v2.x;
+    v1.y += v2.y;
+    v1.z += v2.z;
+}
+
+static void operator-=(Vector3& v1, Vector3& v2){
+    v1.x -= v2.x;
+    v1.y -= v2.y;
+    v1.z -= v2.z;
+}
+
+static Vector3 operator-(Vector3& v){
+    return Vector3(-v.x, -v.y, -v.z);
+}
+
+static Vector3 operator*(Vector3& v1, f32 amt){
+    return scale(v1, amt);
+}
+
 static Vector3 add(Vector3& v1, Vector3& v2){
     return Vector3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
 }
@@ -141,10 +187,30 @@ static Matrix4 quaternionToMatrix4(Quaternion q){
     return m;
 }
 
-static void scale(Matrix4* m, f32 amt){
+static void scaleMatrix(Matrix4* m, Vector3 amt){
+    m->m2[0][0] *= amt.x;
+    m->m2[1][1] *= amt.y;
+    m->m2[2][2] *= amt.z;
+}
+
+static void scaleMatrix(Matrix4* m, f32 amt){
     m->m2[0][0] *= amt;
     m->m2[1][1] *= amt;
     m->m2[2][2] *= amt;
+}
+
+static void translateMatrix(Matrix4* m, Vector3 v){
+    m->m2[3][0] += v.x;
+    m->m2[3][1] += v.y;
+    m->m2[3][2] += v.z;
+}
+
+static Matrix4 buildModelMatrix(Vector3 position, Vector3 scale, Quaternion orientation){
+    Matrix4 mat(1);
+    translateMatrix(&mat, position);
+    scaleMatrix(&mat, scale);
+    Matrix4 rot = quaternionToMatrix4(orientation);
+    return mat * rot;
 }
 
 static f32 length(Quaternion q){
@@ -195,32 +261,3 @@ static void rotate(Quaternion* q, Vector3 axis, f32 angle){
     normalize(q);
 }
 
-static void translate(Matrix4* m, Vector3 v){
-    m->m2[3][0] += v.x;
-    m->m2[3][1] += v.y;
-    m->m2[3][2] += v.z;
-}
-
-static Matrix4 operator*(Matrix4& m1, Matrix4& m2){
-    return multiply(m1, m2);
-}
-
-static Vector3 operator+(Vector3& v1, Vector3& v2){
-    return add(v1, v2);
-}
-
-static void operator+=(Vector3& v1, Vector3& v2){
-    v1.x += v2.x;
-    v1.y += v2.y;
-    v1.z += v2.z;
-}
-
-static void operator-=(Vector3& v1, Vector3& v2){
-    v1.x -= v2.x;
-    v1.y -= v2.y;
-    v1.z -= v2.z;
-}
-
-static Vector3 operator*(Vector3& v1, f32 amt){
-    return scale(v1, amt);
-}

@@ -62,37 +62,59 @@
 #define KEY_LEFT VK_LEFT
 #define KEY_RIGHT VK_RIGHT
 
-struct VertexConstants {
-        Matrix4 modelMatrix;
-        Matrix4 cameraMatrix;
-} vertexConstants;
-
-struct PixelConstants {
-    Vector3 cameraPosition;
-    f32 pad1;
-    Vector3 lightPosition;
-    f32 pad2;
-    Vector3 ambient;
-    f32 pad3;
-    Vector3 diffuse;
-    f32 pad4;
-    Vector3 specular;
-    f32 pad5;
-} pixelConstants;
-
-struct Shader {
-
-};
-
 struct Texture2D {
-    ID3D11Texture2D* texture;
     ID3D11ShaderResourceView* resourceView;
 };
 
+struct TexturedMesh {
+    Quaternion orientation;
+    Vector3 position;
+    Vector3 scale;
+    Texture2D texture;
+    u32 indexCount;
+    u32 indexOffset;
+    u32 indexAddon;
+};
 
+struct TexturedMeshRenderer {
+    struct VertexConstants {
+        Matrix4 modelMatrix;
+        Matrix4 cameraMatrix;
+    } vertexConstants;
+
+    struct PixelConstants {
+        Vector3 cameraPosition;
+        f32 pad1;
+        Vector3 lightPosition;
+        f32 pad2;
+        Vector3 ambient;
+        f32 pad3;
+        Vector3 diffuse;
+        f32 pad4;
+        Vector3 specular;
+        f32 pad5;
+    } pixelConstants;
+
+    ID3D11Buffer* vertexBuffer;
+    ID3D11Buffer* indexBuffer;
+    ID3D11Buffer* vertexConstBuffer;
+    ID3D11Buffer* pixelConstBuffer;
+    ID3D11VertexShader* vertexShader;
+    ID3D11PixelShader* pixelShader;
+    ID3D11InputLayout* inputLayout;
+
+    u32 vertexStride;
+    u32 vertexOffset;
+    u32 vertexDataUsed;
+    u32 indexDataUsed;
+};
 
 static ID3D11Device* d3d11Device;
 static ID3D11DeviceContext* d3d11Context;
+ID3D11SamplerState *pointSampler;
+ID3D11SamplerState *linearSampler;
+
+static TexturedMeshRenderer texturedMeshRenderer;
 
 static bool keyInputs[128];
 
