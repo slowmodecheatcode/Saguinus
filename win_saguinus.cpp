@@ -218,6 +218,22 @@ static void renderTexturedMeshes(TexturedMesh* meshes, u32 totalMeshes, Camera* 
     }
 }
 
+static void readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
+    HANDLE file = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if(file == INVALID_HANDLE_VALUE){
+        MessageBox(0, "Could not open file", "readFileIntoBuffer", 0);
+        exit(1);
+    }        
+    DWORD fileSize;
+    fileSize = GetFileSize(file, 0);
+    bool res = ReadFile(file, data, fileSize, 0, 0);
+    if(!res){
+        MessageBox(0, "Could not read file", "readFileIntoBuffer", 0);
+        exit(1);
+    }
+    *fileLength = fileSize;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
         case WM_QUIT:
@@ -237,6 +253,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
+    u8* buffer = (u8*)malloc(10000);
+    u32 fileSize;
+    readFileIntoBuffer("graphics_utilities.h", buffer, &fileSize);
+
+    OutputDebugString((LPCSTR)buffer);
+
     WNDCLASS wc = { };
     wc.lpfnWndProc   = WindowProc;
     wc.hInstance     = GetModuleHandle(0);
