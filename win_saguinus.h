@@ -120,3 +120,5 @@ static bool keyInputs[128];
 
 static POINT mousePosition;
 static POINT screenCenter;
+
+static u8* tempStorageBuffer;

@@ -89,11 +89,10 @@ static void initializeTexturedMeshRenderer(){
     checkError(hr, "Could not create input layout");
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    CD3D11_BUFFER_DESC vertexDesc(2048, D3D11_BIND_VERTEX_BUFFER);
+    CD3D11_BUFFER_DESC vertexDesc(MEGABYTE(32), D3D11_BIND_VERTEX_BUFFER);
 
-    f32 tempData = 0;
     D3D11_SUBRESOURCE_DATA bufferData = {};
-    bufferData.pSysMem = &tempData;
+    bufferData.pSysMem = tempStorageBuffer;
 
     hr = d3d11Device->CreateBuffer(&vertexDesc, &bufferData, &texturedMeshRenderer.vertexBuffer);
     if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
@@ -102,7 +101,7 @@ static void initializeTexturedMeshRenderer(){
     texturedMeshRenderer.vertexOffset = 0;
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    CD3D11_BUFFER_DESC indexDesc(2048, D3D11_BIND_INDEX_BUFFER);
+    CD3D11_BUFFER_DESC indexDesc(MEGABYTE(32), D3D11_BIND_INDEX_BUFFER);
  
 
     hr = d3d11Device->CreateBuffer(&indexDesc, &bufferData, &texturedMeshRenderer.indexBuffer);
@@ -164,7 +163,6 @@ static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16*
     return mesh;
 }
 
-//reword me to render multiple meshes
 static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
     d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
@@ -253,11 +251,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
-    u8* buffer = (u8*)malloc(10000);
-    u32 fileSize;
-    readFileIntoBuffer("graphics_utilities.h", buffer, &fileSize);
-
-    OutputDebugString((LPCSTR)buffer);
+    tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
 
     WNDCLASS wc = { };
     wc.lpfnWndProc   = WindowProc;
@@ -347,7 +341,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     D3D11_RASTERIZER_DESC rasterizerDesc = {};
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
     rasterizerDesc.CullMode = D3D11_CULL_BACK;
-    rasterizerDesc.FrontCounterClockwise = false;
+    rasterizerDesc.FrontCounterClockwise = true;
     rasterizerDesc.DepthBias = false;
     rasterizerDesc.DepthBiasClamp = 0;
     rasterizerDesc.SlopeScaledDepthBias = 0;
@@ -360,7 +354,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     d3d11Context->RSSetState(rasterizerState);
 
     d3d11Context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
-
     D3D11_SAMPLER_DESC samplerDescripter = {};
     samplerDescripter.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     samplerDescripter.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -387,35 +380,35 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     TexturedMesh cubeMesh = createTexturedMesh(texturedCubeVerticesWithNormals, sizeof(texturedCubeVerticesWithNormals),
                                                cubeIndices, sizeof(cubeIndices));
     cubeMesh.texture = texture;
+                                        
+    u32 fileSize;
+    readFileIntoBuffer("cube.texmesh", tempStorageBuffer, &fileSize);
+    u8* fileData = tempStorageBuffer;
+    u32 vsz = *(u32*)fileData;
+    fileData += 4;
+    u32 isz = *(u32*)fileData;
+    fileData += 4;
+    f32* vts = (f32*)fileData;
+    fileData += vsz;
+    u16* ids = (u16*)fileData;
+    TexturedMesh cube2 = createTexturedMesh(vts, vsz, ids, isz);
+    cube2.texture = texture;
 
     const u32 MESH_COUNT = 1000;
-
     TexturedMesh meshes[MESH_COUNT];
     u32 seed = 1;
     for(u32 i = 0; i < MESH_COUNT; i++){
-        meshes[i] = cubeMesh;
+        meshes[i] = cube2;
         seed = xorshift(seed);
-        meshes[i].position.x = (seed % 100);
+        meshes[i].position.x = seed % 100;
         meshes[i].position.x -= 50;
         seed = xorshift(seed);
-        meshes[i].position.y = (seed % 100);
+        meshes[i].position.y = seed % 100;
         meshes[i].position.y -= 50;
         seed = xorshift(seed);
-        meshes[i].position.z = (seed % 100);
+        meshes[i].position.z = seed % 100;
         meshes[i].position.z -= 50;
     }
-
-    f32 verts[] = {
-        -0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      0.0, 1.0,
-         0.0,  0.5, 0.5,        0.0, 0.0, 1.0,      0.5, 0.0,
-         0.5, -0.5, 0.5,        0.0, 0.0, 1.0,      1.0, 1.0,
-    };
-    u16 inds[] = {
-        0, 1, 2
-    };
-    TexturedMesh triMesh = createTexturedMesh(verts, sizeof(verts), inds, sizeof(inds));
-    triMesh.texture = lightTexture;
-    triMesh.position.z = 1.5;
     
     Camera camera;
     camera.position.z -= 5;

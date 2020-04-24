@@ -1,5 +1,9 @@
 #pragma once
 
+#define KILOBYTE(x) (x * 1024)
+#define MEGABYTE(x) (x * KILOBYTE(1024))
+#define GIGABYTE(x) (x * MEGABYTE(1024))
+
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;

@@ -1,3 +1,6 @@
+optimize mesh exporter
+reorder indices to be clockwise
+make mesh exporter a plugin
 improve lighting
 replace math.h's trig functions
 file io
