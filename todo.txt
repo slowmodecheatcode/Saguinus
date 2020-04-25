@@ -1,8 +1,4 @@
-optimize mesh exporter
-reorder indices to be clockwise
-make mesh exporter a plugin
+make texture exporter a plugin
+figure out how to reverse index order for textured mesh renderer
 improve lighting
 replace math.h's trig functions
-file io
-import meshes
-import textures

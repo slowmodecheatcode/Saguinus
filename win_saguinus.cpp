@@ -14,6 +14,22 @@ static void checkError(HRESULT err, LPCSTR msg){
     }
 }
 
+static void readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
+    HANDLE file = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if(file == INVALID_HANDLE_VALUE){
+        MessageBox(0, "Could not open file", "readFileIntoBuffer", 0);
+        exit(1);
+    }        
+    DWORD fileSize;
+    fileSize = GetFileSize(file, 0);
+    bool res = ReadFile(file, data, fileSize, 0, 0);
+    if(!res){
+        MessageBox(0, "Could not read file", "readFileIntoBuffer", 0);
+        exit(1);
+    }
+    *fileLength = fileSize;
+}
+
 static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPixel){
     Texture2D tex;
 
@@ -124,6 +140,12 @@ static void initializeTexturedMeshRenderer(){
 
     hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &texturedMeshRenderer.pixelConstBuffer);
     checkError(hr, "Error creating pixel constant buffer");
+
+    u8 tex[] = {
+        0, 255, 0, 255,     0, 0, 255, 255,
+        0, 0, 255, 255,     0, 255, 0, 255
+    };
+    texturedMeshRenderer.defaultTexture = createTexture2D(tex, 2, 2, 4);
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -159,8 +181,25 @@ static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16*
     mesh.indexAddon = totalVertsInBuffer;
     mesh.position = Vector3(0);
     mesh.scale = Vector3(1);
+    mesh.texture = texturedMeshRenderer.defaultTexture;
 
     return mesh;
+}
+
+static TexturedMesh createTexturedMesh(const s8* fileName){
+    u32 fileSize;
+    readFileIntoBuffer(fileName, tempStorageBuffer, &fileSize);
+    u8* fileData = tempStorageBuffer;
+    u32 vsz = *(u32*)fileData; 
+    fileData += 4;
+    u32 isz = *(u32*)fileData;
+    fileData += 4;
+    f32* vts = (f32*)fileData;
+    fileData += vsz;
+    u16* ids = (u16*)fileData;
+    TexturedMesh m = createTexturedMesh(vts, vsz, ids, isz);
+    m.texture = texturedMeshRenderer.defaultTexture;
+    return m;
 }
 
 static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
@@ -214,22 +253,6 @@ static void renderTexturedMeshes(TexturedMesh* meshes, u32 totalMeshes, Camera* 
 
         d3d11Context->DrawIndexed(meshes[i].indexCount, meshes[i].indexOffset, meshes[i].indexAddon);
     }
-}
-
-static void readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
-    HANDLE file = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-    if(file == INVALID_HANDLE_VALUE){
-        MessageBox(0, "Could not open file", "readFileIntoBuffer", 0);
-        exit(1);
-    }        
-    DWORD fileSize;
-    fileSize = GetFileSize(file, 0);
-    bool res = ReadFile(file, data, fileSize, 0, 0);
-    if(!res){
-        MessageBox(0, "Could not read file", "readFileIntoBuffer", 0);
-        exit(1);
-    }
-    *fileLength = fileSize;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -369,30 +392,17 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     initializeTexturedMeshRenderer();
 
-    u8 tex[] = {
-        0, 255, 0, 255,     0, 0, 255, 255,
-        0, 0, 255, 255,     0, 255, 0, 255
-    };
-    Texture2D texture = createTexture2D(tex, 2, 2, 4);
-    u8 tex2[] {255, 255, 255, 255};
-    Texture2D lightTexture = createTexture2D(tex2, 1, 1, 4);
-
-    TexturedMesh cubeMesh = createTexturedMesh(texturedCubeVerticesWithNormals, sizeof(texturedCubeVerticesWithNormals),
-                                               cubeIndices, sizeof(cubeIndices));
-    cubeMesh.texture = texture;
-                                        
     u32 fileSize;
-    readFileIntoBuffer("cube.texmesh", tempStorageBuffer, &fileSize);
+    readFileIntoBuffer("suzanne.texpix", tempStorageBuffer, &fileSize);
     u8* fileData = tempStorageBuffer;
-    u32 vsz = *(u32*)fileData;
+    u32 imgWidth = *(u32*)fileData;
     fileData += 4;
-    u32 isz = *(u32*)fileData;
+    u32 imgHeight = *(u32*)fileData;
     fileData += 4;
-    f32* vts = (f32*)fileData;
-    fileData += vsz;
-    u16* ids = (u16*)fileData;
-    TexturedMesh cube2 = createTexturedMesh(vts, vsz, ids, isz);
-    cube2.texture = texture;
+    Texture2D suzanneTexture = createTexture2D(fileData, imgWidth, imgHeight, 4);
+
+    TexturedMesh cube2 = createTexturedMesh("suzanne.texmesh");
+    cube2.texture = suzanneTexture;
 
     const u32 MESH_COUNT = 1000;
     TexturedMesh meshes[MESH_COUNT];
