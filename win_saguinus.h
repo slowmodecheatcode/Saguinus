@@ -110,12 +110,38 @@ struct TexturedMeshRenderer {
     u32 indexDataUsed;
 };
 
+struct TextRenderer {
+    struct VertexConstants {
+        Matrix4 projectionMatrix;
+    } vertexConstants;
+
+    struct PixelConstants {
+        Vector3 color;
+        f32 pad1;
+    } pixelConstants;
+
+    ID3D11Buffer* vertexBuffer;
+    ID3D11Buffer* indexBuffer;
+    ID3D11Buffer* vertexConstBuffer;
+    ID3D11Buffer* pixelConstBuffer;
+    ID3D11VertexShader* vertexShader;
+    ID3D11PixelShader* pixelShader;
+    ID3D11InputLayout* inputLayout;
+    Texture2D defaultTexture;
+
+    u32 vertexStride;
+    u32 vertexOffset;
+    u32 vertexDataUsed;
+    u32 indexDataUsed;
+};
+
 static ID3D11Device* d3d11Device;
 static ID3D11DeviceContext* d3d11Context;
 ID3D11SamplerState *pointSampler;
 ID3D11SamplerState *linearSampler;
 
 static TexturedMeshRenderer texturedMeshRenderer;
+static TextRenderer textRenderer;
 
 static bool keyInputs[128];
 

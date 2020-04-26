@@ -164,6 +164,29 @@ static Matrix4 createPerspectiveProjection(f32 fov, f32 aspect, f32 znear, f32 z
     return m;
 }
 
+static Matrix4 createOrthogonalProjection(f32 left, f32 right, f32 bottom, f32 top, f32 znear, f32 zfar){
+    f32 rminl = right - left;
+    f32 tminb = top - bottom;
+    Matrix4 m;
+    m.m[0] = 2 / rminl;
+    m.m[1] = 0;
+    m.m[2] = 0;
+    m.m[3] = 0;
+    m.m[4] = 0;
+    m.m[5] = 2 / tminb;
+    m.m[6] = 0;
+    m.m[7] = 0;
+    m.m[8] = 0;
+    m.m[9] = 0;
+    m.m[10] = 2 / (znear - zfar);
+    m.m[11] = 0;
+    m.m[12] = -rminl / rminl;;
+    m.m[13] = -(top + bottom) / tminb;
+    m.m[14] = -(zfar + znear) / (zfar - znear);
+    m.m[15] = 1;
+    return m;
+}
+
 static Matrix4 quaternionToMatrix4(Quaternion q){
     Matrix4 m(0);
 

@@ -1,4 +1,6 @@
-make texture exporter a plugin
-figure out how to reverse index order for textured mesh renderer
 improve lighting
 replace math.h's trig functions
+render text
+animated meshes
+
+look into getting rid of padding variables in constant buffer structs

@@ -69,10 +69,10 @@ static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPi
     HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, &texData, &texture);
     checkError(hr, "Error creating texture");
 
-    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 1, 0, 0);
+    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, texDesc.Format, 0, 1, 0, 0);
 
     hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, &tex.resourceView);
-    checkError(hr, "Error shader resource view");
+    checkError(hr, "Error creating shader resource view");
     texture->Release();
 
     return tex;
@@ -85,9 +85,9 @@ static void initializeTexturedMeshRenderer(){
     ID3DBlob* vertexBlob; 
     ID3DBlob* pixelBlob;
     ID3DBlob* errBlob = 0;               
-    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    D3DCompileFromFile(L"textured_mesh_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
     if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
-    D3DCompileFromFile(L"basic_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    D3DCompileFromFile(L"textured_mesh_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
     if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
 
     HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &texturedMeshRenderer.vertexShader);
@@ -148,6 +148,77 @@ static void initializeTexturedMeshRenderer(){
     texturedMeshRenderer.defaultTexture = createTexture2D(tex, 2, 2, 4);
 }
 
+static void initializeTextRenderer(){
+    textRenderer.vertexDataUsed = 0;
+    textRenderer.indexDataUsed = 0;
+
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* pixelBlob;
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"text_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"text_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+
+    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &textRenderer.vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &textRenderer.pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &textRenderer.inputLayout);
+    checkError(hr, "Could not create input layout");
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    CD3D11_BUFFER_DESC vertexDesc(MEGABYTE(32), D3D11_BIND_VERTEX_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA bufferData = {};
+    bufferData.pSysMem = tempStorageBuffer;
+
+    hr = d3d11Device->CreateBuffer(&vertexDesc, &bufferData, &textRenderer.vertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+
+    textRenderer.vertexStride = sizeof(float) * 4;
+    textRenderer.vertexOffset = 0;
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    CD3D11_BUFFER_DESC indexDesc(MEGABYTE(32), D3D11_BIND_INDEX_BUFFER);
+ 
+
+    hr = d3d11Device->CreateBuffer(&indexDesc, &bufferData, &textRenderer.indexBuffer);
+    checkError(hr, "Error creating index buffer");
+
+
+    CD3D11_BUFFER_DESC constBufDesc(sizeof(textRenderer.vertexConstants), D3D11_BIND_CONSTANT_BUFFER);
+
+    textRenderer.vertexConstants.projectionMatrix = createOrthogonalProjection(0, windowWidth, 0, windowHeight, -1, 1);
+
+    D3D11_SUBRESOURCE_DATA constBufData = {};
+    constBufData.pSysMem = &textRenderer.vertexConstants;
+
+    hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &textRenderer.vertexConstBuffer);
+    checkError(hr, "Error creating vertex constant buffer");
+
+
+    CD3D11_BUFFER_DESC pixConstBufDesc(sizeof(textRenderer.pixelConstants), D3D11_BIND_CONSTANT_BUFFER);
+
+    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
+    pixConstBufData.pSysMem = &textRenderer.pixelConstants;
+
+    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &textRenderer.pixelConstBuffer);
+    checkError(hr, "Error creating pixel constant buffer");
+
+    u8 tex[] = {
+        0, 255, 0, 255,     0, 0, 255, 255,
+        0, 0, 255, 255,     0, 255, 0, 255
+    };
+    textRenderer.defaultTexture = createTexture2D(tex, 2, 2, 1);
+}
+
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
     u32 totalIndices = indexDataSize / sizeof(u16);
     u32 totalVertsInBuffer = texturedMeshRenderer.vertexDataUsed / (sizeof(f32) * 8);
@@ -200,6 +271,34 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
     TexturedMesh m = createTexturedMesh(vts, vsz, ids, isz);
     m.texture = texturedMeshRenderer.defaultTexture;
     return m;
+}
+
+static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 color){
+    d3d11Context->VSSetShader(textRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(textRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(textRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &textRenderer.vertexBuffer, &textRenderer.vertexStride, &textRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(textRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &textRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
+    d3d11Context->PSSetShaderResources(0, 1, &textRenderer.defaultTexture.resourceView);
+
+    f32 verts[] = {
+        -0.5, -0.5,     0, 1,
+        -0.5,  0.5,     0, 0,
+         0.5,  0.5,     1, 0,
+         0.5, -0.5,     1, 1
+    };
+
+    u16 inds[] = {
+        0, 1, 2, 2, 3, 0
+    };
+    // d3d11Context->UpdateSubresource(textRenderer.vertexBuffer, 0, 0, verts, sizeof(verts), 0);
+    // d3d11Context->UpdateSubresource(textRenderer.indexBuffer, 0, 0, inds, sizeof(inds), 0);
+    d3d11Context->UpdateSubresource(textRenderer.vertexConstBuffer, 0, 0, &textRenderer.vertexConstants, 0, 0);
+    d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
+
+    d3d11Context->DrawIndexed(6, 0, 0);
 }
 
 static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
@@ -364,7 +463,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     D3D11_RASTERIZER_DESC rasterizerDesc = {};
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
     rasterizerDesc.CullMode = D3D11_CULL_BACK;
-    rasterizerDesc.FrontCounterClockwise = true;
+    rasterizerDesc.FrontCounterClockwise = false;
     rasterizerDesc.DepthBias = false;
     rasterizerDesc.DepthBiasClamp = 0;
     rasterizerDesc.SlopeScaledDepthBias = 0;
@@ -390,6 +489,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     d3d11Device->CreateSamplerState(&samplerDescripter, &linearSampler);
     d3d11Context->PSSetSamplers(0, 1, &linearSampler);
 
+    initializeTextRenderer();
     initializeTexturedMeshRenderer();
 
     u32 fileSize;
@@ -515,6 +615,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         light.position = -camera.position;
         //rendering is done here
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
+        renderText("test", 0, 0, 1, Vector4(1, 1, 1, 1));
 
         swapChain->Present(1, 0);
 
