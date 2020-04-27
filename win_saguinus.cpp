@@ -78,6 +78,18 @@ static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPi
     return tex;
 }
 
+static Texture2D createTexture2D(const s8* fileName, u32 bytesPerPixel){
+    u32 fileSize;
+    readFileIntoBuffer(fileName, tempStorageBuffer, &fileSize);
+    u8* fileData = tempStorageBuffer;
+    u32 width = *(u32*)fileData;
+    fileData += 4;
+    u32 height = *(u32*)fileData;
+    fileData += 4;
+    Texture2D tex = createTexture2D(fileData, width, height, bytesPerPixel);
+    return tex;
+}
+
 static void initializeTexturedMeshRenderer(){
     texturedMeshRenderer.vertexDataUsed = 0;
     texturedMeshRenderer.indexDataUsed = 0;
@@ -174,22 +186,26 @@ static void initializeTextRenderer(){
     checkError(hr, "Could not create input layout");
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    CD3D11_BUFFER_DESC vertexDesc(MEGABYTE(32), D3D11_BIND_VERTEX_BUFFER);
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
     D3D11_SUBRESOURCE_DATA bufferData = {};
     bufferData.pSysMem = tempStorageBuffer;
 
-    hr = d3d11Device->CreateBuffer(&vertexDesc, &bufferData, &textRenderer.vertexBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &textRenderer.vertexBuffer);
     if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
 
     textRenderer.vertexStride = sizeof(float) * 4;
     textRenderer.vertexOffset = 0;
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    CD3D11_BUFFER_DESC indexDesc(MEGABYTE(32), D3D11_BIND_INDEX_BUFFER);
- 
+    //CD3D11_BUFFER_DESC indexDesc(MEGABYTE(32), D3D11_BIND_INDEX_BUFFER);
+    bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
-    hr = d3d11Device->CreateBuffer(&indexDesc, &bufferData, &textRenderer.indexBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &textRenderer.indexBuffer);
     checkError(hr, "Error creating index buffer");
 
 
@@ -212,11 +228,11 @@ static void initializeTextRenderer(){
     hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &textRenderer.pixelConstBuffer);
     checkError(hr, "Error creating pixel constant buffer");
 
-    u8 tex[] = {
-        0, 255, 0, 255,     0, 0, 255, 255,
-        0, 0, 255, 255,     0, 255, 0, 255
-    };
-    textRenderer.defaultTexture = createTexture2D(tex, 2, 2, 1);
+    // u8 tex[] = {
+    //     0, 255, 0, 255,     0, 0, 255, 255,
+    //     0, 0, 255, 255,     0, 255, 0, 255
+    // };
+    textRenderer.defaultTexture = createTexture2D("debug_font.texpix", 1);
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -274,6 +290,7 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
 }
 
 static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 color){
+    d3d11Context->PSSetSamplers(0, 1, &pointSampler);
     d3d11Context->VSSetShader(textRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(textRenderer.pixelShader, 0, 0);
     d3d11Context->IASetInputLayout(textRenderer.inputLayout);
@@ -283,25 +300,35 @@ static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 co
     d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
     d3d11Context->PSSetShaderResources(0, 1, &textRenderer.defaultTexture.resourceView);
 
-    f32 verts[] = {
-        -0.5, -0.5,     0, 1,
-        -0.5,  0.5,     0, 0,
-         0.5,  0.5,     1, 0,
-         0.5, -0.5,     1, 1
-    };
+    D3D11_MAPPED_SUBRESOURCE vertData;
+    D3D11_MAPPED_SUBRESOURCE indData;
+    d3d11Context->Map(textRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
+    d3d11Context->Map(textRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+    f32* vdat = (f32*)vertData.pData;
+    u16* idat = (u16*)indData.pData;
+    u32 ctr = 0;
 
-    u16 inds[] = {
-        0, 1, 2, 2, 3, 0
-    };
-    // d3d11Context->UpdateSubresource(textRenderer.vertexBuffer, 0, 0, verts, sizeof(verts), 0);
-    // d3d11Context->UpdateSubresource(textRenderer.indexBuffer, 0, 0, inds, sizeof(inds), 0);
-    d3d11Context->UpdateSubresource(textRenderer.vertexConstBuffer, 0, 0, &textRenderer.vertexConstants, 0, 0);
-    d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
+    vdat[ctr++] = -0.5; vdat[ctr++] = -0.5; vdat[ctr++] = 0; vdat[ctr++] = 1;
+    vdat[ctr++] = -0.5; vdat[ctr++] =  0.5; vdat[ctr++] = 0; vdat[ctr++] = 0;
+    vdat[ctr++] =  0.5; vdat[ctr++] =  0.5; vdat[ctr++] = 1; vdat[ctr++] = 0;
+    vdat[ctr++] =  0.5; vdat[ctr++] = -0.5; vdat[ctr++] = 1; vdat[ctr++] = 1;
+
+    ctr = 0;
+    idat[ctr++] = 0; idat[ctr++] = 1; idat[ctr++] = 2; idat[ctr++] = 2; idat[ctr++] = 3; idat[ctr++] = 0;
+
+    d3d11Context->Unmap(textRenderer.vertexBuffer, 0);
+    d3d11Context->Unmap(textRenderer.indexBuffer, 0);
+
+    //d3d11Context->UpdateSubresource(textRenderer.vertexBuffer, 0, 0, verts, sizeof(verts), 0);
+    //d3d11Context->UpdateSubresource(textRenderer.indexBuffer, 0, 0, inds, sizeof(inds), 0);
+    //d3d11Context->UpdateSubresource(textRenderer.vertexConstBuffer, 0, 0, &textRenderer.vertexConstants, 0, 0);
+    //d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
 
     d3d11Context->DrawIndexed(6, 0, 0);
 }
 
 static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
     d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
     d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
@@ -328,6 +355,7 @@ static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* l
 }
 
 static void renderTexturedMeshes(TexturedMesh* meshes, u32 totalMeshes, Camera* camera, PointLight* light){
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
     d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
     d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
@@ -487,7 +515,22 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     d3d11Device->CreateSamplerState(&samplerDescripter, &pointSampler);
     samplerDescripter.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     d3d11Device->CreateSamplerState(&samplerDescripter, &linearSampler);
-    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
+
+    ID3D11BlendState* blendState;
+
+    D3D11_BLEND_DESC blendStateDesc = {};
+    blendStateDesc.RenderTarget[0].BlendEnable = true;
+    blendStateDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    blendStateDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    blendStateDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    blendStateDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    blendStateDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    blendStateDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    blendStateDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    d3d11Device->CreateBlendState(&blendStateDesc, &blendState);
+
+    d3d11Context->OMSetBlendState(blendState, 0, 0xffffffff);
+
 
     initializeTextRenderer();
     initializeTexturedMeshRenderer();

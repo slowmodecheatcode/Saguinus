@@ -13,7 +13,7 @@ cbuffer VertexConstants {
 };
 
 cbuffer PixelConstants {
-    float3 color;
+    float3 textColor;
 };
 
 struct PixelInput {
@@ -27,12 +27,12 @@ SamplerState texSampler : register(s0);
 VertexOutput vertexMain(VertexInput input){
     VertexOutput output;
     output.uvCoordinates = input.uvCoordinates;
-    output.position = mul(projectionMatrix, float4(input.position, 0, 1));
+    output.position = float4(input.position, 0, 1);
     return output;
 }
 
 float4 pixelMain(PixelInput input) : SV_TARGET {
     float4 color = tex.Sample(texSampler, input.uvCoordinates);
-    return color;
+    return float4(0, 0, 0, color.r);
 }
 
