@@ -1,3 +1,5 @@
+#include "debug_font.h"
+
 #include "graphics_utilities.h"
 #include "win_saguinus.h"
 
@@ -306,25 +308,51 @@ static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 co
     d3d11Context->Map(textRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
     f32* vdat = (f32*)vertData.pData;
     u16* idat = (u16*)indData.pData;
-    u32 ctr = 0;
 
-    vdat[ctr++] = -0.5; vdat[ctr++] = -0.5; vdat[ctr++] = 0; vdat[ctr++] = 1;
-    vdat[ctr++] = -0.5; vdat[ctr++] =  0.5; vdat[ctr++] = 0; vdat[ctr++] = 0;
-    vdat[ctr++] =  0.5; vdat[ctr++] =  0.5; vdat[ctr++] = 1; vdat[ctr++] = 0;
-    vdat[ctr++] =  0.5; vdat[ctr++] = -0.5; vdat[ctr++] = 1; vdat[ctr++] = 1;
+    u32 vctr = 0;
+    u32 ictr = 0;
+    u32 polyCtr = 0;
 
-    ctr = 0;
-    idat[ctr++] = 0; idat[ctr++] = 1; idat[ctr++] = 2; idat[ctr++] = 2; idat[ctr++] = 3; idat[ctr++] = 0;
+    f32 xStart = xpos;
+    f32 yStart = ypos;
+
+    const s8* c = text;
+    while(*c != '\0'){
+        u32 charIndex = debugFontMissingCharacterCodeIndex;
+        for(u32 i = 0; i < debugFontTotalCharacters; i++){
+            if(*c == debugFontCharacterCodes[i]){
+                charIndex = i;
+                break;
+            }
+        }
+        
+        f32 bmX = debugFontCharacterBitmapX[charIndex];
+        f32 bmY = debugFontCharacterBitmapY[charIndex];
+        f32 bmW = debugFontCharacterBitmapWidth[charIndex];
+        f32 bmH = debugFontCharacterBitmapHeight[charIndex];
+        f32 cW = debugFontCharacterWidth[charIndex];
+        f32 cH = debugFontCharacterHeight[charIndex];
+
+        vdat[vctr++] = xStart; vdat[vctr++] = yStart; vdat[vctr++] = bmX; vdat[vctr++] = bmY + bmH ;
+        vdat[vctr++] = xStart; vdat[vctr++] =  yStart + (cH * scale); vdat[vctr++] = bmX; vdat[vctr++] = bmY;
+        vdat[vctr++] = xStart + (cW * scale); vdat[vctr++] = yStart + (cH * scale); vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY;
+        vdat[vctr++] =  xStart + (cW * scale); vdat[vctr++] = yStart; vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY + bmH;
+
+        xStart += (cW * scale) + debugFontCharacterKernAmount[charIndex];
+
+        idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
+        idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
+        polyCtr += 4;
+
+        c++;
+    }
 
     d3d11Context->Unmap(textRenderer.vertexBuffer, 0);
     d3d11Context->Unmap(textRenderer.indexBuffer, 0);
+    textRenderer.pixelConstants.color = color;
+    d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
 
-    //d3d11Context->UpdateSubresource(textRenderer.vertexBuffer, 0, 0, verts, sizeof(verts), 0);
-    //d3d11Context->UpdateSubresource(textRenderer.indexBuffer, 0, 0, inds, sizeof(inds), 0);
-    //d3d11Context->UpdateSubresource(textRenderer.vertexConstBuffer, 0, 0, &textRenderer.vertexConstants, 0, 0);
-    //d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
-
-    d3d11Context->DrawIndexed(6, 0, 0);
+    d3d11Context->DrawIndexed(ictr, 0, 0);
 }
 
 static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
@@ -656,9 +684,13 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
 
         light.position = -camera.position;
+
         //rendering is done here
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
-        renderText("test", 0, 0, 1, Vector4(1, 1, 1, 1));
+        renderText("`~!@#$%^&*()_+-=[]{}|\\;\'\":", 50, 400, 5, Vector4(1, 0, 0, 1));
+        renderText("<>,./?0123456789abcdefghi", 50, 350, 5, Vector4(1, 1, 0, 1));
+        renderText("jklmnopqrstuvwxyzABCDEF", 50, 300, 5, Vector4(1, 1, 1, 0.5));
+        renderText("GHIJKLMNOPQRSTUVWXYZ", 50, 250, 5, Vector4(0.2, 0.5, 0.8, 1));
 
         swapChain->Present(1, 0);
 

@@ -116,8 +116,7 @@ struct TextRenderer {
     } vertexConstants;
 
     struct PixelConstants {
-        Vector3 color;
-        f32 pad1;
+        Vector4 color;
     } pixelConstants;
 
     ID3D11Buffer* vertexBuffer;

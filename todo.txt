@@ -1,6 +1,13 @@
+render text
+but debug font bitmap data into debug_font.h
+make a binary search
+convert integer and floats to character arrays
+
+
+
 improve lighting
 replace math.h's trig functions
-render text
+
 animated meshes
 
 look into getting rid of padding variables in constant buffer structs
