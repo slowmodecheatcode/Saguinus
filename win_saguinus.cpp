@@ -230,11 +230,23 @@ static void initializeTextRenderer(){
     hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &textRenderer.pixelConstBuffer);
     checkError(hr, "Error creating pixel constant buffer");
 
-    // u8 tex[] = {
-    //     0, 255, 0, 255,     0, 0, 255, 255,
-    //     0, 0, 255, 255,     0, 255, 0, 255
-    // };
-    textRenderer.defaultTexture = createTexture2D("debug_font.texpix", 1);
+    debugFont.bitmapWidth = debugFontBitmapHeight;
+    debugFont.bitmapHeight = debugFontBitmapHeight;
+    debugFont.totalCharacters = debugFontTotalCharacters;
+    debugFont.missingCharacterCodeIndex = debugFontMissingCharacterCodeIndex;
+    debugFont.characterCodes = debugFontCharacterCodes;
+    debugFont.xOffset = debugFontCharacterXOffset;
+    debugFont.yOffset = debugFontCharacterYOffset;
+    debugFont.width = debugFontCharacterWidth;
+    debugFont.height = debugFontCharacterHeight;
+    debugFont.bitmapX = debugFontCharacterBitmapX;
+    debugFont.bitmapY = debugFontCharacterBitmapY;
+    debugFont.bitmapCharacterWidth = debugFontCharacterBitmapWidth;
+    debugFont.bitmapCharacterHeight = debugFontCharacterBitmapHeight;
+    debugFont.kerning = debugFontCharacterKernAmount;
+    debugFont.bitmap = createTexture2D(debugFontBitmapPixels, 50, 50, 1);
+
+    textRenderer.currentFont = &debugFont;
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -292,6 +304,7 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
 }
 
 static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 color){
+    Font* f = textRenderer.currentFont;
     d3d11Context->PSSetSamplers(0, 1, &pointSampler);
     d3d11Context->VSSetShader(textRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(textRenderer.pixelShader, 0, 0);
@@ -300,12 +313,13 @@ static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 co
     d3d11Context->IASetIndexBuffer(textRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
     d3d11Context->VSSetConstantBuffers(0, 1, &textRenderer.vertexConstBuffer);
     d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
-    d3d11Context->PSSetShaderResources(0, 1, &textRenderer.defaultTexture.resourceView);
+    d3d11Context->PSSetShaderResources(0, 1, &f->bitmap.resourceView);
 
     D3D11_MAPPED_SUBRESOURCE vertData;
     D3D11_MAPPED_SUBRESOURCE indData;
     d3d11Context->Map(textRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
     d3d11Context->Map(textRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+    
     f32* vdat = (f32*)vertData.pData;
     u16* idat = (u16*)indData.pData;
 
@@ -318,27 +332,21 @@ static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 co
 
     const s8* c = text;
     while(*c != '\0'){
-        u32 charIndex = debugFontMissingCharacterCodeIndex;
-        for(u32 i = 0; i < debugFontTotalCharacters; i++){
-            if(*c == debugFontCharacterCodes[i]){
-                charIndex = i;
-                break;
-            }
-        }
+        u32 charIndex = binarySearch(f->characterCodes, *c, 0, f->totalCharacters, f->missingCharacterCodeIndex);
         
-        f32 bmX = debugFontCharacterBitmapX[charIndex];
-        f32 bmY = debugFontCharacterBitmapY[charIndex];
-        f32 bmW = debugFontCharacterBitmapWidth[charIndex];
-        f32 bmH = debugFontCharacterBitmapHeight[charIndex];
-        f32 cW = debugFontCharacterWidth[charIndex];
-        f32 cH = debugFontCharacterHeight[charIndex];
+        f32 bmX = f->bitmapX[charIndex];
+        f32 bmY = f->bitmapY[charIndex];
+        f32 bmW = f->bitmapCharacterWidth[charIndex];
+        f32 bmH = f->bitmapCharacterHeight[charIndex];
+        f32 cW = f->width[charIndex];
+        f32 cH = f->height[charIndex];
 
         vdat[vctr++] = xStart; vdat[vctr++] = yStart; vdat[vctr++] = bmX; vdat[vctr++] = bmY + bmH ;
         vdat[vctr++] = xStart; vdat[vctr++] =  yStart + (cH * scale); vdat[vctr++] = bmX; vdat[vctr++] = bmY;
         vdat[vctr++] = xStart + (cW * scale); vdat[vctr++] = yStart + (cH * scale); vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY;
         vdat[vctr++] =  xStart + (cW * scale); vdat[vctr++] = yStart; vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY + bmH;
 
-        xStart += (cW * scale) + debugFontCharacterKernAmount[charIndex];
+        xStart += (cW * scale) + f->kerning[charIndex];
 
         idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
         idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
@@ -607,7 +615,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     screenCenter.y = halfWindowHeight;
     ClientToScreen(hwnd, &screenCenter);
     SetCursorPos(screenCenter.x, screenCenter.y);
-    ShowCursor(false);
+    //ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
 
@@ -687,7 +695,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         //rendering is done here
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
-        renderText("`~!@#$%^&*()_+-=[]{}|\\;\'\":", 50, 400, 5, Vector4(1, 0, 0, 1));
+
+        renderText("`~!@#$%^&*()-_=+[]{}|\\;:\'", 50, 400, 5, Vector4(1, 0, 0, 1));
         renderText("<>,./?0123456789abcdefghi", 50, 350, 5, Vector4(1, 1, 0, 1));
         renderText("jklmnopqrstuvwxyzABCDEF", 50, 300, 5, Vector4(1, 1, 1, 0.5));
         renderText("GHIJKLMNOPQRSTUVWXYZ", 50, 250, 5, Vector4(0.2, 0.5, 0.8, 1));

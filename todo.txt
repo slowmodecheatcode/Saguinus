@@ -1,9 +1,5 @@
 render text
-but debug font bitmap data into debug_font.h
-make a binary search
-convert integer and floats to character arrays
-
-
+make a renderText function with variable arguments
 
 improve lighting
 replace math.h's trig functions

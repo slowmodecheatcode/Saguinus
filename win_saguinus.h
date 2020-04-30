@@ -66,6 +66,24 @@ struct Texture2D {
     ID3D11ShaderResourceView* resourceView;
 };
 
+struct Font {
+    u32 bitmapWidth;
+    u32 bitmapHeight;
+    u32 totalCharacters;
+    u32 missingCharacterCodeIndex;
+    u16* characterCodes;
+    f32* xOffset;
+    f32* yOffset;
+    f32* width;
+    f32* height;
+    f32* bitmapX;
+    f32* bitmapY;
+    f32* bitmapCharacterWidth;
+    f32* bitmapCharacterHeight;
+    f32* kerning;
+    Texture2D bitmap;
+};
+
 struct TexturedMesh {
     Quaternion orientation;
     Vector3 position;
@@ -127,6 +145,7 @@ struct TextRenderer {
     ID3D11PixelShader* pixelShader;
     ID3D11InputLayout* inputLayout;
     Texture2D defaultTexture;
+    Font* currentFont;
 
     u32 vertexStride;
     u32 vertexOffset;
@@ -138,6 +157,8 @@ static ID3D11Device* d3d11Device;
 static ID3D11DeviceContext* d3d11Context;
 ID3D11SamplerState *pointSampler;
 ID3D11SamplerState *linearSampler;
+
+Font debugFont;
 
 static TexturedMeshRenderer texturedMeshRenderer;
 static TextRenderer textRenderer;

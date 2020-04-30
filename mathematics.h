@@ -2,7 +2,7 @@
 
 #include "utilities.h"
 
-#include <math.h>
+#include <math.h> //remove this some day
 
 union Vector3 {
     f32 v[3];
