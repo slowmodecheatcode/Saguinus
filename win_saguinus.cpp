@@ -230,7 +230,7 @@ static void initializeTextRenderer(){
     hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &textRenderer.pixelConstBuffer);
     checkError(hr, "Error creating pixel constant buffer");
 
-    debugFont.bitmapWidth = debugFontBitmapHeight;
+    debugFont.bitmapWidth = debugFontBitmapWidth;
     debugFont.bitmapHeight = debugFontBitmapHeight;
     debugFont.totalCharacters = debugFontTotalCharacters;
     debugFont.missingCharacterCodeIndex = debugFontMissingCharacterCodeIndex;
@@ -619,6 +619,20 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
 
+    DWORD dwResult;    
+    XINPUT_STATE state = {};
+    s64 gamepadIndex;
+    for (DWORD i = 0; i < XUSER_MAX_COUNT; i++){
+        dwResult = XInputGetState(i, &state);
+        if(dwResult == ERROR_SUCCESS){
+            gamepadIndex = i;
+            break;
+        }else{
+        }
+    }
+    f32 LX = state.Gamepad.sThumbLX;
+    f32 LY = state.Gamepad.sThumbLY;
+
     f32 deltaTime = 0;
     u64 endTime = 0;
     u64 startTime = GetTickCount64();
@@ -693,6 +707,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         light.position = -camera.position;
 
+        
+        dwResult = XInputGetState(gamepadIndex, &state);
+         if(dwResult == ERROR_SUCCESS){
+            LX = state.Gamepad.sThumbLX;
+            LY = state.Gamepad.sThumbLY;
+        }
+        
+
         //rendering is done here
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
 
@@ -700,6 +722,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         renderText("<>,./?0123456789abcdefghi", 50, 350, 5, Vector4(1, 1, 0, 1));
         renderText("jklmnopqrstuvwxyzABCDEF", 50, 300, 5, Vector4(1, 1, 1, 0.5));
         renderText("GHIJKLMNOPQRSTUVWXYZ", 50, 250, 5, Vector4(0.2, 0.5, 0.8, 1));
+        s8 buf[512];
+        createDebugString(buf, "Left X:%f  LeftY:%f", LX, LY);
+        renderText(buf, 50, 200, 2, Vector4(0, 0, 0, 1));
 
         swapChain->Present(1, 0);
 

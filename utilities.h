@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdarg.h>
+
 #define KILOBYTE(x) (x * 1024)
 #define MEGABYTE(x) (x * KILOBYTE(1024))
 #define GIGABYTE(x) (x * MEGABYTE(1024))
@@ -34,6 +36,12 @@ static void u32ToCharacterArray(u32 num, s8* buffer){
     u32 ctr = 0;
     u32 ctr2 = 0;
 
+    if(num == 0){
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        return;
+    }
+
     s8 tbuf[32];
     while(num > 0){
         u32 digit = num % 10;
@@ -53,6 +61,10 @@ static void s32ToCharacterArray(s32 num, s8* buffer){
     if(num < 0){
         buffer[ctr2++] = '-';
         num = -num;
+    }else if(num == 0){
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        return;
     }
 
     s8 tbuf[32];
@@ -69,21 +81,27 @@ static void s32ToCharacterArray(s32 num, s8* buffer){
 }
 
 static void f32ToCharacterArray(f32 num, s8* buffer, u32 precision = 2){
-    u32 exp = 1;
-    for(u32 i= 0; i < precision; i++){
-        exp *= 10;
-    }
-
     s32 intValue = (s32)num;
     f32 decimalValue = num - intValue;
-    s32 decimalAsInt = (u32)(decimalValue * exp);
     s8 preDecimal[16];
     s8 postDecimal[16];
 
-    s32ToCharacterArray(intValue, preDecimal);
-    u32ToCharacterArray(decimalAsInt, postDecimal);
-
     u32 ctr = 0;
+    for(u32 i = 0; i < precision; i++){
+        if(decimalValue == 0){
+            postDecimal[ctr++] = '0';
+        }else{
+            decimalValue *= 10;
+            u32 v = (u32)decimalValue;
+            postDecimal[ctr++] = v + '0';
+            decimalValue -= v;
+        }
+    }
+    postDecimal[ctr] = '\0';
+
+    s32ToCharacterArray(intValue, preDecimal);
+
+    ctr = 0;
     s8* c = preDecimal;
     while(*c != '\0'){
         buffer[ctr++] = *c;
@@ -96,4 +114,50 @@ static void f32ToCharacterArray(f32 num, s8* buffer, u32 precision = 2){
         c++;
     }
     buffer[ctr] = '\0';
+}
+
+static void createDebugString(s8* buffer, const s8* txt, ...){
+    va_list argptr;
+    va_start(argptr, txt);
+
+    u32 ctr = 0;
+    const s8* c = txt;
+    s8 tbuf[32];
+    while(*c != '\0'){
+        if(*c == '%'){
+            c++;
+            if(*c == 'i'){
+                s32 v = va_arg(argptr, s32);
+                s32ToCharacterArray(v, tbuf);
+                s8* tc = tbuf;
+                while(*tc != '\0'){
+                    buffer[ctr++] = *tc;
+                    tc++;
+                }
+            }else if(*c == 'u'){
+                u32 v = va_arg(argptr, u32);
+                u32ToCharacterArray(v, tbuf);
+                s8* tc = tbuf;
+                while(*tc != '\0'){
+                    buffer[ctr++] = *tc;
+                    tc++;
+                }
+            }else if(*c == 'f'){
+                f64 v = va_arg(argptr, f64);
+                f32ToCharacterArray(v, tbuf);
+                s8* tc = tbuf;
+                while(*tc != '\0'){
+                    buffer[ctr++] = *tc;
+                    tc++;
+                }
+            }
+
+        }else{
+            buffer[ctr++] = *c;
+        }
+
+        c++;
+    }
+
+    va_end(argptr);
 }

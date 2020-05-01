@@ -1,9 +1,8 @@
 render text
-make a renderText function with variable arguments
+make a renderText function with variable arguments*
 
+gamepad inputs
 improve lighting
 replace math.h's trig functions
-
 animated meshes
-
 look into getting rid of padding variables in constant buffer structs

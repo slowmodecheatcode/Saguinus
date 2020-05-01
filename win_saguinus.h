@@ -4,6 +4,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <d3dcompiler.h>
+#include <xinput.h>
 
 #define KEY_0 0x30
 #define KEY_1 0x31
