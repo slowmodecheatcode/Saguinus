@@ -1,7 +1,7 @@
 render text
-make a renderText function with variable arguments*
+fix bug on negative floats
 
-gamepad inputs
+optomize input
 improve lighting
 replace math.h's trig functions
 animated meshes

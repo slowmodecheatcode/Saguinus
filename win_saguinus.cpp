@@ -247,6 +247,10 @@ static void initializeTextRenderer(){
     debugFont.bitmap = createTexture2D(debugFontBitmapPixels, 50, 50, 1);
 
     textRenderer.currentFont = &debugFont;
+
+    debugPrinterStartY = windowHeight - DEBUG_PRINT_SIZE * 15;
+    debugPrinterX = 25;
+    debugPrinterY = debugPrinterStartY;
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -361,6 +365,18 @@ static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 co
     d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
 
     d3d11Context->DrawIndexed(ictr, 0, 0);
+}
+
+static void debugPrint(s8* text, ...){
+    va_list argptr;
+    va_start(argptr, text);
+    s8 buf[512];
+    createDebugString(buf, text, argptr);
+
+    renderText(buf, debugPrinterX, debugPrinterY, DEBUG_PRINT_SIZE, Vector4(0, 0, 0, 1));
+    debugPrinterY -= DEBUG_PRINT_Y_MOVEMENT;
+
+    va_end(argptr);
 }
 
 static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
@@ -618,20 +634,13 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     //ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
-
-    DWORD dwResult;    
-    XINPUT_STATE state = {};
-    s64 gamepadIndex;
+  
     for (DWORD i = 0; i < XUSER_MAX_COUNT; i++){
-        dwResult = XInputGetState(i, &state);
-        if(dwResult == ERROR_SUCCESS){
-            gamepadIndex = i;
+         if(XInputGetState(i, &gamepad1.state) == ERROR_SUCCESS){
+            gamepad1.index = i;
             break;
-        }else{
         }
     }
-    f32 LX = state.Gamepad.sThumbLX;
-    f32 LY = state.Gamepad.sThumbLY;
 
     f32 deltaTime = 0;
     u64 endTime = 0;
@@ -700,31 +709,75 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             rotate(&camera.orientation, camera.forward, -deltaTime * camera.rotateSpeed);
         }
 
+        if(XInputGetState(gamepad1.index, &gamepad1.state) == ERROR_SUCCESS 
+        && gamepad1.state.dwPacketNumber != gamepad1.lastPacket){
+            gamepad1.leftStickX = (f32)gamepad1.state.Gamepad.sThumbLX / GAMEPAD_STICK_MAX;
+            gamepad1.leftStickY = (f32)gamepad1.state.Gamepad.sThumbLY / GAMEPAD_STICK_MAX;
+            gamepad1.rightStickX = (f32)gamepad1.state.Gamepad.sThumbRX / GAMEPAD_STICK_MAX;
+            gamepad1.rightStickY = (f32)gamepad1.state.Gamepad.sThumbRY / GAMEPAD_STICK_MAX;
+            gamepad1.leftTrigger = (f32)gamepad1.state.Gamepad.bLeftTrigger / GAMEPAD_TRIGGER_MAX;
+            gamepad1.rightTrigger = (f32)gamepad1.state.Gamepad.bRightTrigger / GAMEPAD_TRIGGER_MAX;
+
+            gamepad1.buttons[GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
+            gamepad1.buttons[GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
+            gamepad1.buttons[GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
+            gamepad1.buttons[GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
+            gamepad1.buttons[GAMEPAD_LB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
+            gamepad1.buttons[GAMEPAD_RB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+            gamepad1.buttons[GAMEPAD_L3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
+            gamepad1.buttons[GAMEPAD_R3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
+            gamepad1.buttons[GAMEPAD_D_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
+            gamepad1.buttons[GAMEPAD_D_DONW] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+            gamepad1.buttons[GAMEPAD_D_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+            gamepad1.buttons[GAMEPAD_D_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+            gamepad1.buttons[GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
+            gamepad1.buttons[GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
+        }
+
+        if(gamepad1.rightStickX > 0.05 || gamepad1.rightStickX < -0.05){
+            rotate(&camera.orientation, camera.up, deltaTime * camera.rotateSpeed * gamepad1.rightStickX);
+        }
+        if(gamepad1.rightStickY > 0.05 || gamepad1.rightStickY < -0.05){
+            rotate(&camera.orientation, camera.right, deltaTime * camera.rotateSpeed * gamepad1.rightStickY);
+        }
+        if(gamepad1.leftTrigger > 0.05){
+            rotate(&camera.orientation, camera.forward, deltaTime * camera.rotateSpeed * gamepad1.leftTrigger);
+        }
+        if(gamepad1.rightTrigger > 0.05){
+            rotate(&camera.orientation, camera.forward, -deltaTime * camera.rotateSpeed * gamepad1.rightTrigger);
+        }
+        if(gamepad1.leftStickX > 0.05 || gamepad1.leftStickX < -0.05){
+            camera.position -= camera.right * deltaTime * camera.moveSpeed * gamepad1.leftStickX;
+        }
+        if(gamepad1.leftStickY > 0.05 || gamepad1.leftStickY < -0.05){
+            camera.position -= camera.forward * deltaTime * camera.moveSpeed * gamepad1.leftStickY;
+        }
+        if(gamepad1.buttons[GAMEPAD_LB]){
+            camera.position += camera.up * deltaTime * camera.moveSpeed;
+        }
+        if(gamepad1.buttons[GAMEPAD_RB]){
+            camera.position -= camera.up * deltaTime * camera.moveSpeed;
+        }
+
         updateCameraView(&camera);
 
         d3d11Context->ClearRenderTargetView(renderTargetView, clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
 
         light.position = -camera.position;
-
-        
-        dwResult = XInputGetState(gamepadIndex, &state);
-         if(dwResult == ERROR_SUCCESS){
-            LX = state.Gamepad.sThumbLX;
-            LY = state.Gamepad.sThumbLY;
-        }
         
 
         //rendering is done here
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
 
-        renderText("`~!@#$%^&*()-_=+[]{}|\\;:\'", 50, 400, 5, Vector4(1, 0, 0, 1));
-        renderText("<>,./?0123456789abcdefghi", 50, 350, 5, Vector4(1, 1, 0, 1));
-        renderText("jklmnopqrstuvwxyzABCDEF", 50, 300, 5, Vector4(1, 1, 1, 0.5));
-        renderText("GHIJKLMNOPQRSTUVWXYZ", 50, 250, 5, Vector4(0.2, 0.5, 0.8, 1));
-        s8 buf[512];
-        createDebugString(buf, "Left X:%f  LeftY:%f", LX, LY);
-        renderText(buf, 50, 200, 2, Vector4(0, 0, 0, 1));
+        debugPrint("lsx:%f lsy: %f rsx:%f rsy:%f", gamepad1.leftStickX, gamepad1.leftStickY, gamepad1.rightStickX, gamepad1.rightStickY);
+        debugPrint("lt:%f rt:%f", gamepad1.leftTrigger, gamepad1.rightTrigger);
+        debugPrint("A:%b B:%b X:%b Y:%b", gamepad1.buttons[GAMEPAD_A], gamepad1.buttons[GAMEPAD_B], gamepad1.buttons[GAMEPAD_X], gamepad1.buttons[GAMEPAD_Y]);
+        debugPrint("LB:%i RB:%i L3:%i R3:%i", gamepad1.buttons[GAMEPAD_LB], gamepad1.buttons[GAMEPAD_RB], gamepad1.buttons[GAMEPAD_L3], gamepad1.buttons[GAMEPAD_R3]);
+        debugPrint("DU:%i DD:%i DL:%i DR:%i", gamepad1.buttons[GAMEPAD_D_UP], gamepad1.buttons[GAMEPAD_D_DONW], gamepad1.buttons[GAMEPAD_D_LEFT], gamepad1.buttons[GAMEPAD_D_RIGHT]);
+        debugPrint("START:%i BACK:%i", gamepad1.buttons[GAMEPAD_START], gamepad1.buttons[GAMEPAD_BACK]);
+
+        debugPrinterY = debugPrinterStartY;
 
         swapChain->Present(1, 0);
 

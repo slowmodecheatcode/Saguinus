@@ -63,6 +63,28 @@
 #define KEY_LEFT VK_LEFT
 #define KEY_RIGHT VK_RIGHT
 
+#define GAMEPAD_A 0
+#define GAMEPAD_B 1
+#define GAMEPAD_X 2
+#define GAMEPAD_Y 3
+#define GAMEPAD_LB 4
+#define GAMEPAD_RB 5
+#define GAMEPAD_L3 6
+#define GAMEPAD_R3 7
+#define GAMEPAD_D_UP 8
+#define GAMEPAD_D_DONW 9
+#define GAMEPAD_D_LEFT 10
+#define GAMEPAD_D_RIGHT 11
+#define GAMEPAD_START 12
+#define GAMEPAD_BACK 13
+
+#define GAMEPAD_STICK_MAX 32767
+#define GAMEPAD_STICK_MIN -32768
+#define GAMEPAD_TRIGGER_MAX 255
+
+#define DEBUG_PRINT_SIZE 2
+#define DEBUG_PRINT_Y_MOVEMENT 25
+
 struct Texture2D {
     ID3D11ShaderResourceView* resourceView;
 };
@@ -154,6 +176,22 @@ struct TextRenderer {
     u32 indexDataUsed;
 };
 
+struct Gamepad {
+    XINPUT_STATE state;
+
+    bool buttons[16];
+
+    s64 lastPacket;
+    s64 index;
+
+    f32 leftStickX;
+    f32 leftStickY;
+    f32 rightStickX;
+    f32 rightStickY;
+    f32 leftTrigger;
+    f32 rightTrigger;
+};
+
 static ID3D11Device* d3d11Device;
 static ID3D11DeviceContext* d3d11Context;
 ID3D11SamplerState *pointSampler;
@@ -170,3 +208,9 @@ static POINT mousePosition;
 static POINT screenCenter;
 
 static u8* tempStorageBuffer;
+
+static f32 debugPrinterX;
+static f32 debugPrinterY;
+static f32 debugPrinterStartY;
+
+static Gamepad gamepad1;

@@ -116,10 +116,7 @@ static void f32ToCharacterArray(f32 num, s8* buffer, u32 precision = 2){
     buffer[ctr] = '\0';
 }
 
-static void createDebugString(s8* buffer, const s8* txt, ...){
-    va_list argptr;
-    va_start(argptr, txt);
-
+static void createDebugString(s8* buffer, const s8* txt, va_list argptr){
     u32 ctr = 0;
     const s8* c = txt;
     s8 tbuf[32];
@@ -151,6 +148,21 @@ static void createDebugString(s8* buffer, const s8* txt, ...){
                     tc++;
                 }
             }
+            else if(*c == 'b'){
+                s32 v = va_arg(argptr, s32);
+                if(v){
+                    buffer[ctr++] = 't';
+                    buffer[ctr++] = 'r';
+                    buffer[ctr++] = 'u';
+                    buffer[ctr++] = 'e';
+                }else{
+                    buffer[ctr++] = 'f';
+                    buffer[ctr++] = 'a';
+                    buffer[ctr++] = 'l';
+                    buffer[ctr++] = 's';
+                    buffer[ctr++] = 'e';
+                }
+            }
 
         }else{
             buffer[ctr++] = *c;
@@ -159,5 +171,5 @@ static void createDebugString(s8* buffer, const s8* txt, ...){
         c++;
     }
 
-    va_end(argptr);
+    buffer[ctr] = '\0';
 }
