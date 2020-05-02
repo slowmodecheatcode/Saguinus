@@ -770,6 +770,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         //rendering is done here
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
 
+        s8 buf[256];
+        f32ToCharacterArray(-0.85, buf);
+        debugPrint(buf);
+
         debugPrint("lsx:%f lsy: %f rsx:%f rsy:%f", gamepad1.leftStickX, gamepad1.leftStickY, gamepad1.rightStickX, gamepad1.rightStickY);
         debugPrint("lt:%f rt:%f", gamepad1.leftTrigger, gamepad1.rightTrigger);
         debugPrint("A:%b B:%b X:%b Y:%b", gamepad1.buttons[GAMEPAD_A], gamepad1.buttons[GAMEPAD_B], gamepad1.buttons[GAMEPAD_X], gamepad1.buttons[GAMEPAD_Y]);

@@ -86,20 +86,27 @@ static void f32ToCharacterArray(f32 num, s8* buffer, u32 precision = 2){
     s8 preDecimal[16];
     s8 postDecimal[16];
 
+    if(decimalValue < 0){
+        decimalValue = -decimalValue;
+        intValue = -intValue;
+        preDecimal[0] = '-';
+        u32ToCharacterArray(intValue, preDecimal + 1);
+    }else{
+        u32ToCharacterArray(intValue, preDecimal);
+    }
+
     u32 ctr = 0;
     for(u32 i = 0; i < precision; i++){
         if(decimalValue == 0){
             postDecimal[ctr++] = '0';
         }else{
             decimalValue *= 10;
-            u32 v = (u32)decimalValue;
+            s32 v = (s32)decimalValue;
             postDecimal[ctr++] = v + '0';
             decimalValue -= v;
         }
     }
     postDecimal[ctr] = '\0';
-
-    s32ToCharacterArray(intValue, preDecimal);
 
     ctr = 0;
     s8* c = preDecimal;
