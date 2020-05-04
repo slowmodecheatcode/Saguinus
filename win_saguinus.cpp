@@ -119,40 +119,44 @@ static void initializeTexturedMeshRenderer(){
     checkError(hr, "Could not create input layout");
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    CD3D11_BUFFER_DESC vertexDesc(MEGABYTE(32), D3D11_BIND_VERTEX_BUFFER);
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 
     D3D11_SUBRESOURCE_DATA bufferData = {};
     bufferData.pSysMem = tempStorageBuffer;
 
-    hr = d3d11Device->CreateBuffer(&vertexDesc, &bufferData, &texturedMeshRenderer.vertexBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &texturedMeshRenderer.vertexBuffer);
     if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
 
     texturedMeshRenderer.vertexStride = sizeof(float) * 8;
     texturedMeshRenderer.vertexOffset = 0;
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    CD3D11_BUFFER_DESC indexDesc(MEGABYTE(32), D3D11_BIND_INDEX_BUFFER);
+    bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
  
 
-    hr = d3d11Device->CreateBuffer(&indexDesc, &bufferData, &texturedMeshRenderer.indexBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &texturedMeshRenderer.indexBuffer);
     checkError(hr, "Error creating index buffer");
 
 
-    CD3D11_BUFFER_DESC constBufDesc(sizeof(texturedMeshRenderer.vertexConstants), D3D11_BIND_CONSTANT_BUFFER);
+    bufferDesc.ByteWidth = sizeof(texturedMeshRenderer.vertexConstants);
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
     D3D11_SUBRESOURCE_DATA constBufData = {};
     constBufData.pSysMem = &texturedMeshRenderer.vertexConstants;
 
-    hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &texturedMeshRenderer.vertexConstBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &constBufData, &texturedMeshRenderer.vertexConstBuffer);
     checkError(hr, "Error creating vertex constant buffer");
 
 
-    CD3D11_BUFFER_DESC pixConstBufDesc(sizeof(texturedMeshRenderer.pixelConstants), D3D11_BIND_CONSTANT_BUFFER);
+    bufferDesc.ByteWidth = sizeof(texturedMeshRenderer.pixelConstants);
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
     D3D11_SUBRESOURCE_DATA pixConstBufData = {};
     pixConstBufData.pSysMem = &texturedMeshRenderer.pixelConstants;
 
-    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &texturedMeshRenderer.pixelConstBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &pixConstBufData, &texturedMeshRenderer.pixelConstBuffer);
     checkError(hr, "Error creating pixel constant buffer");
 
     u8 tex[] = {
@@ -163,9 +167,6 @@ static void initializeTexturedMeshRenderer(){
 }
 
 static void initializeTextRenderer(){
-    textRenderer.vertexDataUsed = 0;
-    textRenderer.indexDataUsed = 0;
-
     ID3DBlob* vertexBlob; 
     ID3DBlob* pixelBlob;
     ID3DBlob* errBlob = 0;               
@@ -195,6 +196,7 @@ static void initializeTextRenderer(){
     bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
     D3D11_SUBRESOURCE_DATA bufferData = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
     bufferData.pSysMem = tempStorageBuffer;
 
     hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &textRenderer.vertexBuffer);
@@ -204,25 +206,25 @@ static void initializeTextRenderer(){
     textRenderer.vertexOffset = 0;
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    //CD3D11_BUFFER_DESC indexDesc(MEGABYTE(32), D3D11_BIND_INDEX_BUFFER);
     bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
     hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &textRenderer.indexBuffer);
     checkError(hr, "Error creating index buffer");
 
-
-    CD3D11_BUFFER_DESC constBufDesc(sizeof(textRenderer.vertexConstants), D3D11_BIND_CONSTANT_BUFFER);
+    bufferDesc.ByteWidth = sizeof(textRenderer.vertexConstants);
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
     textRenderer.vertexConstants.projectionMatrix = createOrthogonalProjection(0, windowWidth, 0, windowHeight, -1, 1);
 
     D3D11_SUBRESOURCE_DATA constBufData = {};
     constBufData.pSysMem = &textRenderer.vertexConstants;
 
-    hr = d3d11Device->CreateBuffer(&constBufDesc, &constBufData, &textRenderer.vertexConstBuffer);
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &constBufData, &textRenderer.vertexConstBuffer);
     checkError(hr, "Error creating vertex constant buffer");
 
-
-    CD3D11_BUFFER_DESC pixConstBufDesc(sizeof(textRenderer.pixelConstants), D3D11_BIND_CONSTANT_BUFFER);
+    D3D11_BUFFER_DESC pixConstBufDesc = {};
+    pixConstBufDesc.ByteWidth = sizeof(textRenderer.pixelConstants);
+    pixConstBufDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
     D3D11_SUBRESOURCE_DATA pixConstBufData = {};
     pixConstBufData.pSysMem = &textRenderer.pixelConstants;
@@ -251,6 +253,114 @@ static void initializeTextRenderer(){
     debugPrinterStartY = windowHeight - DEBUG_PRINT_SIZE * 15;
     debugPrinterX = 25;
     debugPrinterY = debugPrinterStartY;
+}
+
+static void initializeDebugRenderer(){
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* pixelBlob;
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"debug_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"debug_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+
+    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &debugRenderer.vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &debugRenderer.pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 1, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &debugRenderer.inputLayout);
+    checkError(hr, "Could not create input layout");
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    D3D11_SUBRESOURCE_DATA bufferData = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferData.pSysMem = tempStorageBuffer;
+
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &debugRenderer.vertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+
+    debugRenderer.vertexStride = sizeof(float) * 3;
+    debugRenderer.vertexOffset = 0;
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+    bufferData.pSysMem = tempStorageBuffer;
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &debugRenderer.indexBuffer);
+    checkError(hr, "Error creating index buffer");
+
+    D3D11_BUFFER_DESC vertConstBufDesc = {};
+    vertConstBufDesc.ByteWidth = sizeof(debugRenderer.vertexConstants);
+    vertConstBufDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA constBufData = {};
+    constBufData.pSysMem = &debugRenderer.vertexConstants;
+
+    hr = d3d11Device->CreateBuffer(&vertConstBufDesc, &constBufData, &debugRenderer.vertexConstBuffer);
+    checkError(hr, "Error creating vertex constant buffer");
+
+    D3D11_BUFFER_DESC pixConstBufDesc = {};
+    pixConstBufDesc.ByteWidth = sizeof(debugRenderer.pixelConstants);
+    pixConstBufDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
+    pixConstBufData.pSysMem = &debugRenderer.pixelConstants;
+
+    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &debugRenderer.pixelConstBuffer);
+    checkError(hr, "Error creating pixel constant buffer");
+}
+
+static void renderDebugCube(Vector3 position, Vector3 scale, Vector4 color, Camera* camera){
+    d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(debugRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &debugRenderer.vertexBuffer, &debugRenderer.vertexStride, &debugRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(debugRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &debugRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
+
+    Matrix4 modelMatrix = buildModelMatrix(position, scale, Quaternion());
+    debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+    debugRenderer.pixelConstants.color = color;
+
+    d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
+    d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
+
+    D3D11_MAPPED_SUBRESOURCE vertData;
+    D3D11_MAPPED_SUBRESOURCE indData;
+    d3d11Context->Map(debugRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
+    d3d11Context->Map(debugRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+
+    f32* vdat = (f32*)vertData.pData;
+    u16* idat = (u16*)indData.pData;
+    u32 vctr = 0;
+    u32 ictr = 0;
+
+    //This is dumb and slow. Make this better!!!
+    for(u32 i = 0; i < 72; i++){
+        vdat[vctr++] = cubeVertices[i];
+    }
+
+    for(u32 i = 0; i < 36; i++){
+        idat[ictr++] = cubeIndices[i];
+    }
+
+    d3d11Context->Unmap(debugRenderer.vertexBuffer, 0);
+    d3d11Context->Unmap(debugRenderer.indexBuffer, 0);
+
+    d3d11Context->DrawIndexed(36, 0, 0);
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -586,6 +696,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     initializeTextRenderer();
     initializeTexturedMeshRenderer();
+    initializeDebugRenderer();
 
     u32 fileSize;
     readFileIntoBuffer("suzanne.texpix", tempStorageBuffer, &fileSize);
@@ -763,23 +874,20 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         d3d11Context->ClearRenderTargetView(renderTargetView, clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
-
-        light.position = -camera.position;
         
-
         //rendering is done here
-        renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
-
-        s8 buf[256];
-        f32ToCharacterArray(-0.85, buf);
-        debugPrint(buf);
-
         debugPrint("lsx:%f lsy: %f rsx:%f rsy:%f", gamepad1.leftStickX, gamepad1.leftStickY, gamepad1.rightStickX, gamepad1.rightStickY);
         debugPrint("lt:%f rt:%f", gamepad1.leftTrigger, gamepad1.rightTrigger);
         debugPrint("A:%b B:%b X:%b Y:%b", gamepad1.buttons[GAMEPAD_A], gamepad1.buttons[GAMEPAD_B], gamepad1.buttons[GAMEPAD_X], gamepad1.buttons[GAMEPAD_Y]);
         debugPrint("LB:%i RB:%i L3:%i R3:%i", gamepad1.buttons[GAMEPAD_LB], gamepad1.buttons[GAMEPAD_RB], gamepad1.buttons[GAMEPAD_L3], gamepad1.buttons[GAMEPAD_R3]);
         debugPrint("DU:%i DD:%i DL:%i DR:%i", gamepad1.buttons[GAMEPAD_D_UP], gamepad1.buttons[GAMEPAD_D_DONW], gamepad1.buttons[GAMEPAD_D_LEFT], gamepad1.buttons[GAMEPAD_D_RIGHT]);
         debugPrint("START:%i BACK:%i", gamepad1.buttons[GAMEPAD_START], gamepad1.buttons[GAMEPAD_BACK]);
+
+
+        renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
+        //renderTexturedMesh(&cube2, &camera, &light);
+
+        renderDebugCube(light.position, Vector3(1), Vector4(1, 1, 1, 1), &camera);
 
         debugPrinterY = debugPrinterStartY;
 

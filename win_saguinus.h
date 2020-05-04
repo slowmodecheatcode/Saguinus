@@ -172,8 +172,27 @@ struct TextRenderer {
 
     u32 vertexStride;
     u32 vertexOffset;
-    u32 vertexDataUsed;
-    u32 indexDataUsed;
+};
+
+struct DebugRenderer {
+    struct VertexConstants {
+        Matrix4 cameraMatrix;
+    } vertexConstants;
+
+    struct PixelConstants {
+        Vector4 color;
+    } pixelConstants;
+
+    ID3D11Buffer* vertexBuffer;
+    ID3D11Buffer* indexBuffer;
+    ID3D11Buffer* vertexConstBuffer;
+    ID3D11Buffer* pixelConstBuffer;
+    ID3D11VertexShader* vertexShader;
+    ID3D11PixelShader* pixelShader;
+    ID3D11InputLayout* inputLayout;
+
+    u32 vertexStride;
+    u32 vertexOffset;
 };
 
 struct Gamepad {
@@ -201,6 +220,7 @@ Font debugFont;
 
 static TexturedMeshRenderer texturedMeshRenderer;
 static TextRenderer textRenderer;
+static DebugRenderer debugRenderer;
 
 static bool keyInputs[128];
 

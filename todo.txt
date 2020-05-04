@@ -1,5 +1,7 @@
+fix bug with setting up constant buffers
+
 import fonts from .ttf .otf
-optomize input
+optimize input
 improve lighting
 replace math.h's trig functions
 animated meshes
