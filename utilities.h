@@ -170,7 +170,48 @@ static void createDebugString(s8* buffer, const s8* txt, va_list argptr){
                     buffer[ctr++] = 'e';
                 }
             }
-
+            else if(*c == 'v'){
+                c++;
+                switch(*c){
+                    case '2':{
+                        break;
+                    }
+                    case '3':{
+                        c++;
+                        //CLEAN ME UP PLEASE I HATE MYSELF!!!!
+                        f32* vp = va_arg(argptr, f32*);
+                        f32 x = vp[0];
+                        f32 y = vp[1];
+                        f32 z = vp[2];
+                        f32ToCharacterArray(x, tbuf);
+                        s8* tc = tbuf;
+                        while(*tc != '\0'){
+                            buffer[ctr++] = *tc;
+                            tc++;
+                        }
+                        buffer[ctr++] = ',';
+                        buffer[ctr++] = ' ';
+                        f32ToCharacterArray(y, tbuf);
+                        tc = tbuf;
+                        while(*tc != '\0'){
+                            buffer[ctr++] = *tc;
+                            tc++;
+                        }
+                        buffer[ctr++] = ',';
+                        buffer[ctr++] = ' ';
+                        f32ToCharacterArray(z, tbuf);
+                        tc = tbuf;
+                        while(*tc != '\0'){
+                            buffer[ctr++] = *tc;
+                            tc++;
+                        }
+                        break;
+                    }
+                    case '4':{
+                        break;
+                    }
+                }
+            }
         }else{
             buffer[ctr++] = *c;
         }

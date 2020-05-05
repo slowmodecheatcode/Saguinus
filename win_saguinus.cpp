@@ -283,6 +283,12 @@ static void initializeDebugRenderer(){
     bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
+    f32* vdat = (f32*)tempStorageBuffer;
+    u32 vctr = 0;
+    for(u32 i = 0; i < 72; i++){
+        vdat[vctr++] = cubeVertices[i];
+    }
+
     D3D11_SUBRESOURCE_DATA bufferData = {};
     bufferDesc.ByteWidth = MEGABYTE(32);
     bufferData.pSysMem = tempStorageBuffer;
@@ -297,6 +303,11 @@ static void initializeDebugRenderer(){
     bufferDesc.ByteWidth = MEGABYTE(32);
     bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
+    u16* idat = (u16*)tempStorageBuffer;
+    u32 ictr = 0;
+    for(u32 i = 0; i < 36; i++){
+        idat[ictr++] = cubeIndices[i];
+    }
     bufferData.pSysMem = tempStorageBuffer;
     hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &debugRenderer.indexBuffer);
     checkError(hr, "Error creating index buffer");
@@ -332,6 +343,24 @@ static void renderDebugCube(Vector3 position, Vector3 scale, Vector4 color, Came
     d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
 
     Matrix4 modelMatrix = buildModelMatrix(position, scale, Quaternion());
+    debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view * modelMatrix;
+    debugRenderer.pixelConstants.color = color;
+
+    d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
+    d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
+
+    d3d11Context->DrawIndexed(36, 0, 0);
+}
+
+static void renderDebugLine(Vector3 startPos, Vector3 endPos, Vector4 color, f32 lineWidth, Camera* camera){
+    d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(debugRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &debugRenderer.vertexBuffer, &debugRenderer.vertexStride, &debugRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(debugRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &debugRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
+
     debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
     debugRenderer.pixelConstants.color = color;
 
@@ -339,28 +368,34 @@ static void renderDebugCube(Vector3 position, Vector3 scale, Vector4 color, Came
     d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
 
     D3D11_MAPPED_SUBRESOURCE vertData;
-    D3D11_MAPPED_SUBRESOURCE indData;
-    d3d11Context->Map(debugRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
-    d3d11Context->Map(debugRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+    D3D11_MAPPED_SUBRESOURCE indData;                   
+    d3d11Context->Map(debugRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
+    d3d11Context->Map(debugRenderer.indexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &indData);
 
     f32* vdat = (f32*)vertData.pData;
     u16* idat = (u16*)indData.pData;
-    u32 vctr = 0;
-    u32 ictr = 0;
+    u32 vctr = 72;
+    u32 ictr = 36;
 
-    //This is dumb and slow. Make this better!!!
-    for(u32 i = 0; i < 72; i++){
-        vdat[vctr++] = cubeVertices[i];
-    }
+    Vector3 val = normalOf(cross(endPos - startPos, camera->position - startPos));
+    Vector3 ang = val * lineWidth * 0.5;
 
-    for(u32 i = 0; i < 36; i++){
-        idat[ictr++] = cubeIndices[i];
-    }
+    Vector3 p1 = startPos - ang;
+    Vector3 p2 = endPos - ang;
+    Vector3 p3 = endPos + ang;
+    Vector3 p4 = startPos + ang;
+
+    vdat[vctr++] = p1.x;    vdat[vctr++] = p1.y;    vdat[vctr++] = p1.z;
+    vdat[vctr++] = p2.x;    vdat[vctr++] = p2.y;    vdat[vctr++] = p2.z;
+    vdat[vctr++] = p3.x;    vdat[vctr++] = p3.y;    vdat[vctr++] = p3.z;
+    vdat[vctr++] = p4.x;    vdat[vctr++] = p4.y;    vdat[vctr++] = p4.z;
+    idat[ictr++] = 0; idat[ictr++] = 1; idat[ictr++] = 2;
+    idat[ictr++] = 2; idat[ictr++] = 3; idat[ictr++] = 0;
 
     d3d11Context->Unmap(debugRenderer.vertexBuffer, 0);
     d3d11Context->Unmap(debugRenderer.indexBuffer, 0);
 
-    d3d11Context->DrawIndexed(36, 0, 0);
+    d3d11Context->DrawIndexed(6, 36, 24);
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -876,18 +911,18 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
-        debugPrint("lsx:%f lsy: %f rsx:%f rsy:%f", gamepad1.leftStickX, gamepad1.leftStickY, gamepad1.rightStickX, gamepad1.rightStickY);
-        debugPrint("lt:%f rt:%f", gamepad1.leftTrigger, gamepad1.rightTrigger);
-        debugPrint("A:%b B:%b X:%b Y:%b", gamepad1.buttons[GAMEPAD_A], gamepad1.buttons[GAMEPAD_B], gamepad1.buttons[GAMEPAD_X], gamepad1.buttons[GAMEPAD_Y]);
-        debugPrint("LB:%i RB:%i L3:%i R3:%i", gamepad1.buttons[GAMEPAD_LB], gamepad1.buttons[GAMEPAD_RB], gamepad1.buttons[GAMEPAD_L3], gamepad1.buttons[GAMEPAD_R3]);
-        debugPrint("DU:%i DD:%i DL:%i DR:%i", gamepad1.buttons[GAMEPAD_D_UP], gamepad1.buttons[GAMEPAD_D_DONW], gamepad1.buttons[GAMEPAD_D_LEFT], gamepad1.buttons[GAMEPAD_D_RIGHT]);
-        debugPrint("START:%i BACK:%i", gamepad1.buttons[GAMEPAD_START], gamepad1.buttons[GAMEPAD_BACK]);
+        debugPrint("Camera Position: %v3", &camera.position);
 
 
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
         //renderTexturedMesh(&cube2, &camera, &light);
 
-        renderDebugCube(light.position, Vector3(1), Vector4(1, 1, 1, 1), &camera);
+        Vector3 p1 = Vector3(-3, -5, -5);
+        Vector3 p2 = Vector3(3, 5, -5);
+        renderDebugCube(p1, Vector3(0.25), Vector4(0, 1, 0, 1), &camera);
+        renderDebugCube(p2, Vector3(0.25), Vector4(0, 1, 0, 1), &camera);
+        renderDebugCube(light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), &camera);
+        renderDebugLine(p1, p2, Vector4(0, 0, 1, 1), 2, &camera);
 
         debugPrinterY = debugPrinterStartY;
 

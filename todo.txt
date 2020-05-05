@@ -1,4 +1,5 @@
-fix bug with setting up constant buffers
+finish debugPrint functionality for Vector2, 3, 4 and Quaternion
+
 
 import fonts from .ttf .otf
 optimize input
@@ -6,3 +7,4 @@ improve lighting
 replace math.h's trig functions
 animated meshes
 look into getting rid of padding variables in constant buffer structs
+add audio

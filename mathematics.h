@@ -65,12 +65,33 @@ static u32 xorshift(u32 x){
     return x;
 }
 
-// static u64 xorshift(u64 x){
-//     x ^= x << 13;
-// 	x ^= x >> 7;
-// 	x ^= x << 17;
-//     return x;
-// }
+static Vector3 operator*(Vector3& v1, f32 amt){
+    return scale(v1, amt);
+}
+
+static Vector3 add(Vector3& v1, Vector3& v2){
+    return Vector3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
+}
+
+static Vector3 sub(Vector3& v1, Vector3& v2){
+    return Vector3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
+}
+
+static Vector3 scale(Vector3& v1, f32 amt){
+    return Vector3(v1.x * amt, v1.y * amt, v1.z * amt);
+}
+
+static Vector3 cross(Vector3 v1, Vector3 v2){
+    /*
+        cx = aybz − azby
+        cy = azbx − axbz
+        cz = axby − aybx
+    */
+
+   return Vector3(v1.y * v2.z - v1.z * v2.y,
+                  v1.z * v2.x - v1.x * v2.z,
+                  v1.x * v2.y - v1.y * v2.x);
+}
 
 static Matrix4 operator*(Matrix4& m1, Matrix4& m2){
     return multiply(m1, m2);
@@ -92,20 +113,30 @@ static void operator-=(Vector3& v1, Vector3& v2){
     v1.z -= v2.z;
 }
 
+static Vector3 operator-(Vector3& v1, Vector3& v2){
+    return sub(v1, v2);
+}
+
 static Vector3 operator-(Vector3& v){
     return Vector3(-v.x, -v.y, -v.z);
 }
 
-static Vector3 operator*(Vector3& v1, f32 amt){
-    return scale(v1, amt);
+static f32 length(Vector3 v){
+    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
-static Vector3 add(Vector3& v1, Vector3& v2){
-    return Vector3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
-}
-
-static Vector3 scale(Vector3& v1, f32 amt){
-    return Vector3(v1.x * amt, v1.y * amt, v1.z * amt);
+static Vector3 normalOf(Vector3 v){
+    f32 len = length(v);
+    if(len != 0){
+        v.x /= len;
+        v.y /= len;
+        v.z /= len;
+    }else{
+        v.x = 0;
+        v.y = 0;
+        v.z = 0;
+    }
+    return v;
 }
 
 static Matrix4 createIdentityMatrix(){
