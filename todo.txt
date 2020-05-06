@@ -1,5 +1,3 @@
-finish debugPrint functionality for Vector2, 3, 4 and Quaternion
-
 
 import fonts from .ttf .otf
 optimize input

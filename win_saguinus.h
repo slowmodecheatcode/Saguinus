@@ -82,7 +82,7 @@
 #define GAMEPAD_STICK_MIN -32768
 #define GAMEPAD_TRIGGER_MAX 255
 
-#define DEBUG_PRINT_SIZE 2
+#define DEBUG_PRINT_SIZE 2.3
 #define DEBUG_PRINT_Y_MOVEMENT 25
 
 struct Texture2D {
@@ -193,6 +193,8 @@ struct DebugRenderer {
 
     u32 vertexStride;
     u32 vertexOffset;
+    u32 currentBufferCount;
+    u32 currentIndexCount;
 };
 
 struct Gamepad {

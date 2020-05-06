@@ -32,6 +32,18 @@ static s32 binarySearch(u16* list, u16 value, u32 start, u32 end, s32 notFoundRe
     return notFoundReturnValue;
 }
 
+static void concatenateCharacterStrings(s8* s1, s8* s2, u32* ctr){
+    s8* c = s2;
+    u32 index = *ctr;
+    while(*c != '\0'){
+        s1[index++] = *c;
+        c++;
+    }
+
+    s1[index] = '\0';
+    *ctr = index;
+}
+
 static void u32ToCharacterArray(u32 num, s8* buffer){
     u32 ctr = 0;
     u32 ctr2 = 0;
@@ -133,81 +145,80 @@ static void createDebugString(s8* buffer, const s8* txt, va_list argptr){
             if(*c == 'i'){
                 s32 v = va_arg(argptr, s32);
                 s32ToCharacterArray(v, tbuf);
-                s8* tc = tbuf;
-                while(*tc != '\0'){
-                    buffer[ctr++] = *tc;
-                    tc++;
-                }
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
             }else if(*c == 'u'){
                 u32 v = va_arg(argptr, u32);
                 u32ToCharacterArray(v, tbuf);
-                s8* tc = tbuf;
-                while(*tc != '\0'){
-                    buffer[ctr++] = *tc;
-                    tc++;
-                }
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
             }else if(*c == 'f'){
                 f64 v = va_arg(argptr, f64);
                 f32ToCharacterArray(v, tbuf);
-                s8* tc = tbuf;
-                while(*tc != '\0'){
-                    buffer[ctr++] = *tc;
-                    tc++;
-                }
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
             }
             else if(*c == 'b'){
                 s32 v = va_arg(argptr, s32);
                 if(v){
-                    buffer[ctr++] = 't';
-                    buffer[ctr++] = 'r';
-                    buffer[ctr++] = 'u';
-                    buffer[ctr++] = 'e';
+                    concatenateCharacterStrings(buffer, "true", &ctr);
                 }else{
-                    buffer[ctr++] = 'f';
-                    buffer[ctr++] = 'a';
-                    buffer[ctr++] = 'l';
-                    buffer[ctr++] = 's';
-                    buffer[ctr++] = 'e';
+                    concatenateCharacterStrings(buffer, "false", &ctr);
                 }
+            }
+            else if(*c == 'q'){
+                c++;
+                f32* vp = va_arg(argptr, f32*);
+                f32ToCharacterArray(vp[0], tbuf);
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
+                concatenateCharacterStrings(buffer, ", ", &ctr);
+                f32ToCharacterArray(vp[1], tbuf);
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
+                concatenateCharacterStrings(buffer, ", ", &ctr);
+                f32ToCharacterArray(vp[2], tbuf);
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
+                concatenateCharacterStrings(buffer, ", ", &ctr);
+                f32ToCharacterArray(vp[3], tbuf);
+                concatenateCharacterStrings(buffer, tbuf, &ctr);
+                break;
             }
             else if(*c == 'v'){
                 c++;
                 switch(*c){
                     case '2':{
+                        c++;
+                        f32* vp = va_arg(argptr, f32*);
+                        f32ToCharacterArray(vp[0], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
+                        concatenateCharacterStrings(buffer, ", ", &ctr);
+                        f32ToCharacterArray(vp[1], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
                         break;
                     }
                     case '3':{
                         c++;
-                        //CLEAN ME UP PLEASE I HATE MYSELF!!!!
                         f32* vp = va_arg(argptr, f32*);
-                        f32 x = vp[0];
-                        f32 y = vp[1];
-                        f32 z = vp[2];
-                        f32ToCharacterArray(x, tbuf);
-                        s8* tc = tbuf;
-                        while(*tc != '\0'){
-                            buffer[ctr++] = *tc;
-                            tc++;
-                        }
-                        buffer[ctr++] = ',';
-                        buffer[ctr++] = ' ';
-                        f32ToCharacterArray(y, tbuf);
-                        tc = tbuf;
-                        while(*tc != '\0'){
-                            buffer[ctr++] = *tc;
-                            tc++;
-                        }
-                        buffer[ctr++] = ',';
-                        buffer[ctr++] = ' ';
-                        f32ToCharacterArray(z, tbuf);
-                        tc = tbuf;
-                        while(*tc != '\0'){
-                            buffer[ctr++] = *tc;
-                            tc++;
-                        }
+                        f32ToCharacterArray(vp[0], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
+                        concatenateCharacterStrings(buffer, ", ", &ctr);
+                        f32ToCharacterArray(vp[1], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
+                        concatenateCharacterStrings(buffer, ", ", &ctr);
+                        f32ToCharacterArray(vp[2], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
                         break;
                     }
                     case '4':{
+                        c++;
+                        f32* vp = va_arg(argptr, f32*);
+                        f32ToCharacterArray(vp[0], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
+                        concatenateCharacterStrings(buffer, ", ", &ctr);
+                        f32ToCharacterArray(vp[1], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
+                        concatenateCharacterStrings(buffer, ", ", &ctr);
+                        f32ToCharacterArray(vp[2], tbuf);
+                        concatenateCharacterStrings(buffer, ", ", &ctr);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
+                        f32ToCharacterArray(vp[3], tbuf);
+                        concatenateCharacterStrings(buffer, tbuf, &ctr);
                         break;
                     }
                 }

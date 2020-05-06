@@ -331,6 +331,9 @@ static void initializeDebugRenderer(){
 
     hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &debugRenderer.pixelConstBuffer);
     checkError(hr, "Error creating pixel constant buffer");
+
+    debugRenderer.currentBufferCount = 72;
+    debugRenderer.currentIndexCount = 36;
 }
 
 static void renderDebugCube(Vector3 position, Vector3 scale, Vector4 color, Camera* camera){
@@ -374,10 +377,10 @@ static void renderDebugLine(Vector3 startPos, Vector3 endPos, Vector4 color, f32
 
     f32* vdat = (f32*)vertData.pData;
     u16* idat = (u16*)indData.pData;
-    u32 vctr = 72;
-    u32 ictr = 36;
+    u32 vctr = debugRenderer.currentBufferCount;
+    u32 ictr = debugRenderer.currentIndexCount;
 
-    Vector3 val = normalOf(cross(endPos - startPos, camera->position - startPos));
+    Vector3 val = normalOf(cross(endPos - startPos, -camera->position - startPos));
     Vector3 ang = val * lineWidth * 0.5;
 
     Vector3 p1 = startPos - ang;
@@ -395,7 +398,52 @@ static void renderDebugLine(Vector3 startPos, Vector3 endPos, Vector4 color, f32
     d3d11Context->Unmap(debugRenderer.vertexBuffer, 0);
     d3d11Context->Unmap(debugRenderer.indexBuffer, 0);
 
-    d3d11Context->DrawIndexed(6, 36, 24);
+    d3d11Context->DrawIndexed(6, debugRenderer.currentIndexCount, debugRenderer.currentBufferCount / 3);
+    debugRenderer.currentBufferCount += 12;
+    debugRenderer.currentIndexCount += 6;
+}
+
+static void renderDebugBox(Vector3 position, Vector3 scale, Vector4 color, f32 lineWidth, Camera* camera){
+    d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(debugRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &debugRenderer.vertexBuffer, &debugRenderer.vertexStride, &debugRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(debugRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &debugRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
+
+    Matrix4 modelMatrix = buildModelMatrix(position, scale, Quaternion());
+    debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view * modelMatrix;
+    debugRenderer.pixelConstants.color = color;
+
+    d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
+    d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
+
+    Vector3 halfScale = scale * 0.5;
+    Vector3 p1(position.x - halfScale.x, position.y - halfScale.y, position.z - halfScale.z);
+    Vector3 p2(position.x - halfScale.x, position.y + halfScale.y, position.z - halfScale.z);
+    Vector3 p3(position.x + halfScale.x, position.y + halfScale.y, position.z - halfScale.z);
+    Vector3 p4(position.x + halfScale.x, position.y - halfScale.y, position.z - halfScale.z);
+
+    Vector3 p5(position.x - halfScale.x, position.y - halfScale.y, position.z + halfScale.z);
+    Vector3 p6(position.x - halfScale.x, position.y + halfScale.y, position.z + halfScale.z);
+    Vector3 p7(position.x + halfScale.x, position.y + halfScale.y, position.z + halfScale.z);
+    Vector3 p8(position.x + halfScale.x, position.y - halfScale.y, position.z + halfScale.z);
+
+    renderDebugLine(p1, p2, color, lineWidth, camera);
+    renderDebugLine(p2, p3, color, lineWidth, camera);
+    renderDebugLine(p3, p4, color, lineWidth, camera);
+    renderDebugLine(p4, p1, color, lineWidth, camera);
+
+    renderDebugLine(p5, p6, color, lineWidth, camera);
+    renderDebugLine(p6, p7, color, lineWidth, camera);
+    renderDebugLine(p7, p8, color, lineWidth, camera);
+    renderDebugLine(p8, p5, color, lineWidth, camera);
+
+    renderDebugLine(p1, p5, color, lineWidth, camera);
+    renderDebugLine(p2, p6, color, lineWidth, camera);
+    renderDebugLine(p3, p7, color, lineWidth, camera);
+    renderDebugLine(p4, p8, color, lineWidth, camera);
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -728,7 +776,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     d3d11Context->OMSetBlendState(blendState, 0, 0xffffffff);
 
-
     initializeTextRenderer();
     initializeTexturedMeshRenderer();
     initializeDebugRenderer();
@@ -777,7 +824,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     screenCenter.y = halfWindowHeight;
     ClientToScreen(hwnd, &screenCenter);
     SetCursorPos(screenCenter.x, screenCenter.y);
-    //ShowCursor(false);
+    ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
   
@@ -911,19 +958,26 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
+        debugPrint("INT: %i", 2342);
+        debugPrint("FLOAT: %f", 23.234324);
+        debugPrint("BOOL: %b", true);
         debugPrint("Camera Position: %v3", &camera.position);
-
+        debugPrint("Camera orientation %q", &camera.orientation);
 
         renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
         //renderTexturedMesh(&cube2, &camera, &light);
 
-        Vector3 p1 = Vector3(-3, -5, -5);
-        Vector3 p2 = Vector3(3, 5, -5);
-        renderDebugCube(p1, Vector3(0.25), Vector4(0, 1, 0, 1), &camera);
-        renderDebugCube(p2, Vector3(0.25), Vector4(0, 1, 0, 1), &camera);
+        Vector3 p1 = Vector3(-17, -234, -2);
+        Vector3 p2 = Vector3(3.3, 523, -44);
+        
         renderDebugCube(light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), &camera);
-        renderDebugLine(p1, p2, Vector4(0, 0, 1, 1), 2, &camera);
 
+        renderDebugCube(Vector3(0), Vector3(1), Vector4(0, 0, 1, 1), &camera);
+        renderDebugBox(Vector3(0), Vector3(5), Vector4(0, 0, 1, 0.5), 0.25, &camera);
+
+
+        debugRenderer.currentBufferCount = 72;
+        debugRenderer.currentIndexCount = 36;
         debugPrinterY = debugPrinterStartY;
 
         swapChain->Present(1, 0);
