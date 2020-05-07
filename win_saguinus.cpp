@@ -1,6 +1,8 @@
 #include "debug_font.h"
-
 #include "graphics_utilities.h"
+
+#include "saguinus.cpp"
+
 #include "win_saguinus.h"
 
 static u32 windowWidth = 800;
@@ -560,7 +562,77 @@ static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 co
     d3d11Context->DrawIndexed(ictr, 0, 0);
 }
 
-static void debugPrint(s8* text, ...){
+static void renderTextBuffer(TextBuffer* buffer){
+    Font* f = textRenderer.currentFont;
+    d3d11Context->PSSetSamplers(0, 1, &pointSampler);
+    d3d11Context->VSSetShader(textRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(textRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(textRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &textRenderer.vertexBuffer, &textRenderer.vertexStride, &textRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(textRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &textRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
+    d3d11Context->PSSetShaderResources(0, 1, &f->bitmap.resourceView);
+
+    D3D11_MAPPED_SUBRESOURCE vertData;
+    D3D11_MAPPED_SUBRESOURCE indData;
+    d3d11Context->Map(textRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
+    d3d11Context->Map(textRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+    
+    f32* vdat = (f32*)vertData.pData;
+    u16* idat = (u16*)indData.pData;
+
+    u32 vctr = 0;
+    u32 ictr = 0;
+    u32 polyCtr = 0;
+
+    u32 strCt = buffer->totalStrings;
+    for(u32 i = 0; i < strCt; i++){
+
+        f32 xStart = buffer->xPositions[i];
+        f32 yStart = buffer->yPositions[i];
+        f32 scale = buffer->scales[i];
+
+        const s8* c = buffer->strings[i];
+        while(*c != '\0'){
+            u32 charIndex = binarySearch(f->characterCodes, *c, 0, f->totalCharacters, f->missingCharacterCodeIndex);
+            
+            f32 bmX = f->bitmapX[charIndex];
+            f32 bmY = f->bitmapY[charIndex];
+            f32 bmW = f->bitmapCharacterWidth[charIndex];
+            f32 bmH = f->bitmapCharacterHeight[charIndex];
+            f32 cW = f->width[charIndex];
+            f32 cH = f->height[charIndex];
+
+            vdat[vctr++] = xStart; vdat[vctr++] = yStart; vdat[vctr++] = bmX; vdat[vctr++] = bmY + bmH ;
+            vdat[vctr++] = xStart; vdat[vctr++] =  yStart + (cH * scale); vdat[vctr++] = bmX; vdat[vctr++] = bmY;
+            vdat[vctr++] = xStart + (cW * scale); vdat[vctr++] = yStart + (cH * scale); vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY;
+            vdat[vctr++] =  xStart + (cW * scale); vdat[vctr++] = yStart; vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY + bmH;
+
+            xStart += (cW * scale) + f->kerning[charIndex];
+
+            idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
+            idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
+            polyCtr += 4;
+
+            c++;
+        }
+
+        
+        textRenderer.pixelConstants.color = buffer->colors[i];
+        d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
+        d3d11Context->DrawIndexed(ictr, 0, 0);
+    }
+
+    d3d11Context->Unmap(textRenderer.vertexBuffer, 0);
+    d3d11Context->Unmap(textRenderer.indexBuffer, 0);
+    
+
+    buffer->totalStrings = 0;
+    buffer->debugPrinterY = buffer->debugPrinterStartY;
+}
+
+static void winDebugPrint(s8* text, ...){
     va_list argptr;
     va_start(argptr, text);
     s8 buf[512];
@@ -835,6 +907,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
     }
 
+    GameState gameState = {};
+    gameState.windowWidth = windowWidth;
+    gameState.windowHeight = windowHeight;
+    initialzeGameState(&gameState);
+
     f32 deltaTime = 0;
     u64 endTime = 0;
     u64 startTime = GetTickCount64();
@@ -953,29 +1030,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
 
         updateCameraView(&camera);
+        updateGameState(&gameState);
 
         d3d11Context->ClearRenderTargetView(renderTargetView, clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
-        debugPrint("INT: %i", 2342);
-        debugPrint("FLOAT: %f", 23.234324);
-        debugPrint("BOOL: %b", true);
-        debugPrint("Camera Position: %v3", &camera.position);
-        debugPrint("Camera orientation %q", &camera.orientation);
-
-        renderTexturedMeshes(meshes, MESH_COUNT, &camera, &light);
-        //renderTexturedMesh(&cube2, &camera, &light);
-
-        Vector3 p1 = Vector3(-17, -234, -2);
-        Vector3 p2 = Vector3(3.3, 523, -44);
-        
-        renderDebugCube(light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), &camera);
-
-        renderDebugCube(Vector3(0), Vector3(1), Vector4(0, 0, 1, 1), &camera);
-        renderDebugBox(Vector3(0), Vector3(5), Vector4(0, 0, 1, 0.5), 0.25, &camera);
 
 
+        renderTextBuffer(&gameState.textBuffer);
         debugRenderer.currentBufferCount = 72;
         debugRenderer.currentIndexCount = 36;
         debugPrinterY = debugPrinterStartY;
