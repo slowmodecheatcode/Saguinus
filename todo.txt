@@ -1,3 +1,6 @@
+handle window moved events and window resized events
+use mapping to update constant buffers
+
 
 import fonts from .ttf .otf
 optimize input

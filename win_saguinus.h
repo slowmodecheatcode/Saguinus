@@ -85,38 +85,6 @@
 #define DEBUG_PRINT_SIZE 2.3
 #define DEBUG_PRINT_Y_MOVEMENT 25
 
-struct Texture2D {
-    ID3D11ShaderResourceView* resourceView;
-};
-
-struct Font {
-    u32 bitmapWidth;
-    u32 bitmapHeight;
-    u32 totalCharacters;
-    u32 missingCharacterCodeIndex;
-    u16* characterCodes;
-    f32* xOffset;
-    f32* yOffset;
-    f32* width;
-    f32* height;
-    f32* bitmapX;
-    f32* bitmapY;
-    f32* bitmapCharacterWidth;
-    f32* bitmapCharacterHeight;
-    f32* kerning;
-    Texture2D bitmap;
-};
-
-struct TexturedMesh {
-    Quaternion orientation;
-    Vector3 position;
-    Vector3 scale;
-    Texture2D texture;
-    u32 indexCount;
-    u32 indexOffset;
-    u32 indexAddon;
-};
-
 struct TexturedMeshRenderer {
     struct VertexConstants {
         Matrix4 modelMatrix;
@@ -230,9 +198,5 @@ static POINT mousePosition;
 static POINT screenCenter;
 
 static u8* tempStorageBuffer;
-
-static f32 debugPrinterX;
-static f32 debugPrinterY;
-static f32 debugPrinterStartY;
 
 static Gamepad gamepad1;

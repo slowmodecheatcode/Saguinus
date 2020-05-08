@@ -75,7 +75,7 @@ static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPi
 
     CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, texDesc.Format, 0, 1, 0, 0);
 
-    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, &tex.resourceView);
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tex.texture);
     checkError(hr, "Error creating shader resource view");
     texture->Release();
 
@@ -251,10 +251,6 @@ static void initializeTextRenderer(){
     debugFont.bitmap = createTexture2D(debugFontBitmapPixels, 50, 50, 1);
 
     textRenderer.currentFont = &debugFont;
-
-    debugPrinterStartY = windowHeight - DEBUG_PRINT_SIZE * 15;
-    debugPrinterX = 25;
-    debugPrinterY = debugPrinterStartY;
 }
 
 static void initializeDebugRenderer(){
@@ -338,7 +334,7 @@ static void initializeDebugRenderer(){
     debugRenderer.currentIndexCount = 36;
 }
 
-static void renderDebugCube(Vector3 position, Vector3 scale, Vector4 color, Camera* camera){
+static void renderDebugBuffer(DebugBuffer* buffer, Camera* camera){
     d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
     d3d11Context->IASetInputLayout(debugRenderer.inputLayout);
@@ -347,30 +343,21 @@ static void renderDebugCube(Vector3 position, Vector3 scale, Vector4 color, Came
     d3d11Context->VSSetConstantBuffers(0, 1, &debugRenderer.vertexConstBuffer);
     d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
 
-    Matrix4 modelMatrix = buildModelMatrix(position, scale, Quaternion());
-    debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view * modelMatrix;
-    debugRenderer.pixelConstants.color = color;
+    u32 len = buffer->totalCubes;
+    Matrix4 camMat = camera->projection * camera->view;
+    for(u32 i = 0; i < len; i++){
+        Matrix4 modelMatrix = buildModelMatrix(buffer->cubePositions[i], buffer->cubeScales[i], Quaternion());
+        debugRenderer.vertexConstants.cameraMatrix = camMat * modelMatrix;
+        debugRenderer.pixelConstants.color = buffer->cubeColors[i];
 
-    d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
-    d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
+        d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
+        d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
 
-    d3d11Context->DrawIndexed(36, 0, 0);
-}
+        d3d11Context->DrawIndexed(36, 0, 0);
+    }
 
-static void renderDebugLine(Vector3 startPos, Vector3 endPos, Vector4 color, f32 lineWidth, Camera* camera){
-    d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
-    d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
-    d3d11Context->IASetInputLayout(debugRenderer.inputLayout);
-    d3d11Context->IASetVertexBuffers(0, 1, &debugRenderer.vertexBuffer, &debugRenderer.vertexStride, &debugRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(debugRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-    d3d11Context->VSSetConstantBuffers(0, 1, &debugRenderer.vertexConstBuffer);
-    d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
+    buffer->totalCubes = 0;
 
-    debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
-    debugRenderer.pixelConstants.color = color;
-
-    d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
-    d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
 
     D3D11_MAPPED_SUBRESOURCE vertData;
     D3D11_MAPPED_SUBRESOURCE indData;                   
@@ -382,70 +369,43 @@ static void renderDebugLine(Vector3 startPos, Vector3 endPos, Vector4 color, f32
     u32 vctr = debugRenderer.currentBufferCount;
     u32 ictr = debugRenderer.currentIndexCount;
 
-    Vector3 val = normalOf(cross(endPos - startPos, -camera->position - startPos));
-    Vector3 ang = val * lineWidth * 0.5;
+    len = buffer->totalLines;
+    for(u32 i = 0; i < len; i++){
+        Vector3 startPos = buffer->lineStarts[i];
+        Vector3 endPos = buffer->lineEnds[i];
+        f32 lineWidth = buffer->lineWidths[i];
 
-    Vector3 p1 = startPos - ang;
-    Vector3 p2 = endPos - ang;
-    Vector3 p3 = endPos + ang;
-    Vector3 p4 = startPos + ang;
+        Vector3 val = normalOf(cross(endPos - startPos, -camera->position - startPos));
+        Vector3 ang = val * lineWidth * 0.5;
 
-    vdat[vctr++] = p1.x;    vdat[vctr++] = p1.y;    vdat[vctr++] = p1.z;
-    vdat[vctr++] = p2.x;    vdat[vctr++] = p2.y;    vdat[vctr++] = p2.z;
-    vdat[vctr++] = p3.x;    vdat[vctr++] = p3.y;    vdat[vctr++] = p3.z;
-    vdat[vctr++] = p4.x;    vdat[vctr++] = p4.y;    vdat[vctr++] = p4.z;
-    idat[ictr++] = 0; idat[ictr++] = 1; idat[ictr++] = 2;
-    idat[ictr++] = 2; idat[ictr++] = 3; idat[ictr++] = 0;
+        Vector3 p1 = startPos - ang;
+        Vector3 p2 = endPos - ang;
+        Vector3 p3 = endPos + ang;
+        Vector3 p4 = startPos + ang;
+
+        vdat[vctr++] = p1.x;    vdat[vctr++] = p1.y;    vdat[vctr++] = p1.z;
+        vdat[vctr++] = p2.x;    vdat[vctr++] = p2.y;    vdat[vctr++] = p2.z;
+        vdat[vctr++] = p3.x;    vdat[vctr++] = p3.y;    vdat[vctr++] = p3.z;
+        vdat[vctr++] = p4.x;    vdat[vctr++] = p4.y;    vdat[vctr++] = p4.z;
+        idat[ictr++] = 0; idat[ictr++] = 1; idat[ictr++] = 2;
+        idat[ictr++] = 2; idat[ictr++] = 3; idat[ictr++] = 0;
+
+        debugRenderer.pixelConstants.color = buffer->lineColors[i];
+        debugRenderer.vertexConstants.cameraMatrix = camMat;
+        d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
+        d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
+
+        d3d11Context->DrawIndexed(6, debugRenderer.currentIndexCount, debugRenderer.currentBufferCount / 3);
+        debugRenderer.currentBufferCount += 12;
+        debugRenderer.currentIndexCount += 6;
+    }
 
     d3d11Context->Unmap(debugRenderer.vertexBuffer, 0);
     d3d11Context->Unmap(debugRenderer.indexBuffer, 0);
 
-    d3d11Context->DrawIndexed(6, debugRenderer.currentIndexCount, debugRenderer.currentBufferCount / 3);
-    debugRenderer.currentBufferCount += 12;
-    debugRenderer.currentIndexCount += 6;
-}
-
-static void renderDebugBox(Vector3 position, Vector3 scale, Vector4 color, f32 lineWidth, Camera* camera){
-    d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
-    d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
-    d3d11Context->IASetInputLayout(debugRenderer.inputLayout);
-    d3d11Context->IASetVertexBuffers(0, 1, &debugRenderer.vertexBuffer, &debugRenderer.vertexStride, &debugRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(debugRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-    d3d11Context->VSSetConstantBuffers(0, 1, &debugRenderer.vertexConstBuffer);
-    d3d11Context->PSSetConstantBuffers(0, 1, &debugRenderer.pixelConstBuffer);
-
-    Matrix4 modelMatrix = buildModelMatrix(position, scale, Quaternion());
-    debugRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view * modelMatrix;
-    debugRenderer.pixelConstants.color = color;
-
-    d3d11Context->UpdateSubresource(debugRenderer.vertexConstBuffer, 0, 0, &debugRenderer.vertexConstants, 0, 0);
-    d3d11Context->UpdateSubresource(debugRenderer.pixelConstBuffer, 0, 0, &debugRenderer.pixelConstants, 0, 0);
-
-    Vector3 halfScale = scale * 0.5;
-    Vector3 p1(position.x - halfScale.x, position.y - halfScale.y, position.z - halfScale.z);
-    Vector3 p2(position.x - halfScale.x, position.y + halfScale.y, position.z - halfScale.z);
-    Vector3 p3(position.x + halfScale.x, position.y + halfScale.y, position.z - halfScale.z);
-    Vector3 p4(position.x + halfScale.x, position.y - halfScale.y, position.z - halfScale.z);
-
-    Vector3 p5(position.x - halfScale.x, position.y - halfScale.y, position.z + halfScale.z);
-    Vector3 p6(position.x - halfScale.x, position.y + halfScale.y, position.z + halfScale.z);
-    Vector3 p7(position.x + halfScale.x, position.y + halfScale.y, position.z + halfScale.z);
-    Vector3 p8(position.x + halfScale.x, position.y - halfScale.y, position.z + halfScale.z);
-
-    renderDebugLine(p1, p2, color, lineWidth, camera);
-    renderDebugLine(p2, p3, color, lineWidth, camera);
-    renderDebugLine(p3, p4, color, lineWidth, camera);
-    renderDebugLine(p4, p1, color, lineWidth, camera);
-
-    renderDebugLine(p5, p6, color, lineWidth, camera);
-    renderDebugLine(p6, p7, color, lineWidth, camera);
-    renderDebugLine(p7, p8, color, lineWidth, camera);
-    renderDebugLine(p8, p5, color, lineWidth, camera);
-
-    renderDebugLine(p1, p5, color, lineWidth, camera);
-    renderDebugLine(p2, p6, color, lineWidth, camera);
-    renderDebugLine(p3, p7, color, lineWidth, camera);
-    renderDebugLine(p4, p8, color, lineWidth, camera);
+    buffer->totalLines = 0;
+    debugRenderer.currentBufferCount = 72;
+    debugRenderer.currentIndexCount = 36;
 }
 
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
@@ -502,66 +462,6 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
     return m;
 }
 
-static void renderText(const s8* text, f32 xpos, f32 ypos, f32 scale, Vector4 color){
-    Font* f = textRenderer.currentFont;
-    d3d11Context->PSSetSamplers(0, 1, &pointSampler);
-    d3d11Context->VSSetShader(textRenderer.vertexShader, 0, 0);
-    d3d11Context->PSSetShader(textRenderer.pixelShader, 0, 0);
-    d3d11Context->IASetInputLayout(textRenderer.inputLayout);
-    d3d11Context->IASetVertexBuffers(0, 1, &textRenderer.vertexBuffer, &textRenderer.vertexStride, &textRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(textRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-    d3d11Context->VSSetConstantBuffers(0, 1, &textRenderer.vertexConstBuffer);
-    d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
-    d3d11Context->PSSetShaderResources(0, 1, &f->bitmap.resourceView);
-
-    D3D11_MAPPED_SUBRESOURCE vertData;
-    D3D11_MAPPED_SUBRESOURCE indData;
-    d3d11Context->Map(textRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
-    d3d11Context->Map(textRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
-    
-    f32* vdat = (f32*)vertData.pData;
-    u16* idat = (u16*)indData.pData;
-
-    u32 vctr = 0;
-    u32 ictr = 0;
-    u32 polyCtr = 0;
-
-    f32 xStart = xpos;
-    f32 yStart = ypos;
-
-    const s8* c = text;
-    while(*c != '\0'){
-        u32 charIndex = binarySearch(f->characterCodes, *c, 0, f->totalCharacters, f->missingCharacterCodeIndex);
-        
-        f32 bmX = f->bitmapX[charIndex];
-        f32 bmY = f->bitmapY[charIndex];
-        f32 bmW = f->bitmapCharacterWidth[charIndex];
-        f32 bmH = f->bitmapCharacterHeight[charIndex];
-        f32 cW = f->width[charIndex];
-        f32 cH = f->height[charIndex];
-
-        vdat[vctr++] = xStart; vdat[vctr++] = yStart; vdat[vctr++] = bmX; vdat[vctr++] = bmY + bmH ;
-        vdat[vctr++] = xStart; vdat[vctr++] =  yStart + (cH * scale); vdat[vctr++] = bmX; vdat[vctr++] = bmY;
-        vdat[vctr++] = xStart + (cW * scale); vdat[vctr++] = yStart + (cH * scale); vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY;
-        vdat[vctr++] =  xStart + (cW * scale); vdat[vctr++] = yStart; vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY + bmH;
-
-        xStart += (cW * scale) + f->kerning[charIndex];
-
-        idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
-        idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
-        polyCtr += 4;
-
-        c++;
-    }
-
-    d3d11Context->Unmap(textRenderer.vertexBuffer, 0);
-    d3d11Context->Unmap(textRenderer.indexBuffer, 0);
-    textRenderer.pixelConstants.color = color;
-    d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
-
-    d3d11Context->DrawIndexed(ictr, 0, 0);
-}
-
 static void renderTextBuffer(TextBuffer* buffer){
     Font* f = textRenderer.currentFont;
     d3d11Context->PSSetSamplers(0, 1, &pointSampler);
@@ -572,7 +472,7 @@ static void renderTextBuffer(TextBuffer* buffer){
     d3d11Context->IASetIndexBuffer(textRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
     d3d11Context->VSSetConstantBuffers(0, 1, &textRenderer.vertexConstBuffer);
     d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
-    d3d11Context->PSSetShaderResources(0, 1, &f->bitmap.resourceView);
+    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&f->bitmap.texture);
 
     D3D11_MAPPED_SUBRESOURCE vertData;
     D3D11_MAPPED_SUBRESOURCE indData;
@@ -632,46 +532,7 @@ static void renderTextBuffer(TextBuffer* buffer){
     buffer->debugPrinterY = buffer->debugPrinterStartY;
 }
 
-static void winDebugPrint(s8* text, ...){
-    va_list argptr;
-    va_start(argptr, text);
-    s8 buf[512];
-    createDebugString(buf, text, argptr);
-
-    renderText(buf, debugPrinterX, debugPrinterY, DEBUG_PRINT_SIZE, Vector4(0, 0, 0, 1));
-    debugPrinterY -= DEBUG_PRINT_Y_MOVEMENT;
-
-    va_end(argptr);
-}
-
-static void renderTexturedMesh(TexturedMesh* mesh, Camera* camera, PointLight* light){
-    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
-    d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
-    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
-    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
-    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
-    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
-    d3d11Context->PSSetShaderResources(0, 1, &mesh->texture.resourceView);
-
-    texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(mesh->position, mesh->scale, mesh->orientation);
-    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
-
-    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
-
-    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
-    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
-    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
-    texturedMeshRenderer.pixelConstants.specular = light->specular;
-
-    d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
-    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
-
-    d3d11Context->DrawIndexed(mesh->indexCount, mesh->indexOffset, mesh->indexAddon);
-}
-
-static void renderTexturedMeshes(TexturedMesh* meshes, u32 totalMeshes, Camera* camera, PointLight* light){
+static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, PointLight* light){
     d3d11Context->PSSetSamplers(0, 1, &linearSampler);
     d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
@@ -690,12 +551,13 @@ static void renderTexturedMeshes(TexturedMesh* meshes, u32 totalMeshes, Camera* 
     texturedMeshRenderer.pixelConstants.specular = light->specular;
     d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
 
+    u32 totalMeshes = tmb->totalMeshes;
     for(u32 i = 0; i < totalMeshes; i++){
-        d3d11Context->PSSetShaderResources(0, 1, &meshes[i].texture.resourceView);
-        texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(meshes[i].position, meshes[i].scale, meshes[i].orientation);
+        d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&tmb->textures[i].texture);
+        texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(tmb->positions[i], tmb->scales[i], tmb->orientations[i]);
         d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
 
-        d3d11Context->DrawIndexed(meshes[i].indexCount, meshes[i].indexOffset, meshes[i].indexAddon);
+        d3d11Context->DrawIndexed(tmb->indexCounts[i], tmb->indexOffsets[i], tmb->indexAddons[i]);
     }
 }
 
@@ -863,22 +725,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     TexturedMesh cube2 = createTexturedMesh("suzanne.texmesh");
     cube2.texture = suzanneTexture;
-
-    const u32 MESH_COUNT = 1000;
-    TexturedMesh meshes[MESH_COUNT];
-    u32 seed = 1;
-    for(u32 i = 0; i < MESH_COUNT; i++){
-        meshes[i] = cube2;
-        seed = xorshift(seed);
-        meshes[i].position.x = seed % 100;
-        meshes[i].position.x -= 50;
-        seed = xorshift(seed);
-        meshes[i].position.y = seed % 100;
-        meshes[i].position.y -= 50;
-        seed = xorshift(seed);
-        meshes[i].position.z = seed % 100;
-        meshes[i].position.z -= 50;
-    }
     
     Camera camera;
     camera.position.z -= 5;
@@ -910,6 +756,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     GameState gameState = {};
     gameState.windowWidth = windowWidth;
     gameState.windowHeight = windowHeight;
+    gameState.camera = camera;
+    gameState.mesh = cube2;
+    gameState.mesh.texture = suzanneTexture;
     initialzeGameState(&gameState);
 
     f32 deltaTime = 0;
@@ -1032,16 +881,16 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         updateCameraView(&camera);
         updateGameState(&gameState);
 
+        gameState.camera = camera;
+        gameState.light = light;
         d3d11Context->ClearRenderTargetView(renderTargetView, clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
 
-
+        renderTexturedMeshBuffer(&gameState.txtdMeshBuffer, &camera, &light);
+        renderDebugBuffer(&gameState.debugBuffer, &camera);
         renderTextBuffer(&gameState.textBuffer);
-        debugRenderer.currentBufferCount = 72;
-        debugRenderer.currentIndexCount = 36;
-        debugPrinterY = debugPrinterStartY;
 
         swapChain->Present(1, 0);
 
