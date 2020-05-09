@@ -1,6 +1,6 @@
-handle window moved events and window resized events
 use mapping to update constant buffers
-
+handle updating resolution on window resize
+finish key inputs in game state
 
 import fonts from .ttf .otf
 optimize input

@@ -91,18 +91,15 @@ static void initialzeGameState(GameState* state){
     tb->debugPrinterStartY = state->windowHeight - 50;
     tb->debugPrinterX = 25;
     tb->debugPrinterY = tb->debugPrinterStartY;
+
+    state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
 }
 
 static void updateGameState(GameState* state){
+    if(state->keyInputs[KEY_SPACE]){
+        debugPrint(state, "SPACE IS PRESSED");
+    }
+
     debugCube(state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), state);
-    debugLine(Vector3(-3, -3, -3), Vector3(3, 3, 3), Vector4(1, 0, 0, 1), 0.5, state);
-    debugBox(Vector3(-1, -1, -1), Vector3(3, 4, 2), Vector4(0, 1, 0, 1), 0.25, state);
-
-    addTexturedMeshToBuffer(&state->mesh, Vector3(-4, 0, 0), Vector3(1), Quaternion(), state);
-
-    debugPrint(state, "TESTTRRSRS");
-    debugPrint(state, "T%f", 1235.1541864);
-
-    addTextToBuffer("MOAR TESTSTS13#@$(#@", 300, 300, 4, Vector4(.7, .4, .2, 1), state);
-    addTextToBuffer("MOAR TESTSTS13#@$(#@", 300, 250, 3.5, Vector4(0, .4, .7, 1), state);
+    addTexturedMeshToBuffer(&state->mesh, Vector3(0), Vector3(1), Quaternion(), state);
 }

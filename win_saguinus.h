@@ -183,8 +183,8 @@ struct Gamepad {
 
 static ID3D11Device* d3d11Device;
 static ID3D11DeviceContext* d3d11Context;
-ID3D11SamplerState *pointSampler;
-ID3D11SamplerState *linearSampler;
+static ID3D11SamplerState *pointSampler;
+static ID3D11SamplerState *linearSampler;
 
 Font debugFont;
 

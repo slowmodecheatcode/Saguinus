@@ -151,9 +151,17 @@ static void createDebugString(s8* buffer, const s8* txt, va_list argptr){
                 u32ToCharacterArray(v, tbuf);
                 concatenateCharacterStrings(buffer, tbuf, &ctr);
             }else if(*c == 'f'){
-                f64 v = va_arg(argptr, f64);
-                f32ToCharacterArray(v, tbuf);
-                concatenateCharacterStrings(buffer, tbuf, &ctr);
+                s8 d = *(c + 1);
+                if(d >= '0' && d <= '9'){
+                    c++;
+                    f64 v = va_arg(argptr, f64);
+                    f32ToCharacterArray(v, tbuf, d - '0');
+                    concatenateCharacterStrings(buffer, tbuf, &ctr);
+                }else{
+                    f64 v = va_arg(argptr, f64);
+                    f32ToCharacterArray(v, tbuf);
+                    concatenateCharacterStrings(buffer, tbuf, &ctr);
+                }
             }
             else if(*c == 'b'){
                 s32 v = va_arg(argptr, s32);

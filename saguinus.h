@@ -6,6 +6,8 @@
 #define MAX_DEBUG_LINES 256
 #define MAX_TEXTURED_MESHES 256
 
+static u32 KEY_SPACE;
+
 struct Texture2D {
     void* texture;
 };
@@ -83,7 +85,11 @@ struct GameState {
 
     TexturedMesh mesh;
 
+    Vector4 clearColor;
+    Vector2 mousePosition;
+
+    bool* keyInputs;
 
     u32 windowWidth;
     u32 windowHeight;
-};
+}gameState;

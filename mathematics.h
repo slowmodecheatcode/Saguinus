@@ -4,6 +4,17 @@
 
 #include <math.h> //remove this some day
 
+union Vector2 {
+    f32 v[2];
+    struct {
+        f32 x;
+        f32 y;
+    };
+    Vector2(){}
+    Vector2(f32 v) : x(v), y(v){}
+    Vector2(f32 x, f32 y) : x(x), y(y){}
+};
+
 union Vector3 {
     f32 v[3];
     struct {

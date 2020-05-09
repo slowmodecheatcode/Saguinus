@@ -559,6 +559,7 @@ static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, Po
 
         d3d11Context->DrawIndexed(tmb->indexCounts[i], tmb->indexOffsets[i], tmb->indexAddons[i]);
     }
+    tmb->totalMeshes = 0;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -568,10 +569,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             exit(0);
             break;
         }
+        case WM_WINDOWPOSCHANGED:{
+            screenCenter.x = halfWindowWidth;
+            screenCenter.y = halfWindowHeight;
+            ClientToScreen(hwnd, &screenCenter);
+        }
         case WM_MOUSEMOVE:{
             GetCursorPos(&mousePosition);
             ScreenToClient(hwnd, &mousePosition);
-            updateCamera = true;
+            if(mousePosition.x != gameState.mousePosition.x || mousePosition.y != gameState.mousePosition.y){
+                gameState.mousePosition = Vector2(mousePosition.x, mousePosition.y);
+                updateCamera = true;
+            }
+            
+            break;
+        }
+        case WM_KEYDOWN:{
+            keyInputs[wParam] = true;
+            break;
+        }
+        case WM_KEYUP:{
+            keyInputs[wParam] = false;
             break;
         }
     }
@@ -738,11 +756,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     light.position = Vector3(5, 5, -3);
     light.diffuse = Vector3(1, 1, 1);
 
-    screenCenter.x = halfWindowWidth;
-    screenCenter.y = halfWindowHeight;
-    ClientToScreen(hwnd, &screenCenter);
-    SetCursorPos(screenCenter.x, screenCenter.y);
-    ShowCursor(false);
+    // screenCenter.x = halfWindowWidth;
+    // screenCenter.y = halfWindowHeight;
+    // ClientToScreen(hwnd, &screenCenter);
+    // SetCursorPos(screenCenter.x, screenCenter.y);
+    //ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
   
@@ -752,13 +770,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             break;
         }
     }
-
-    GameState gameState = {};
     gameState.windowWidth = windowWidth;
     gameState.windowHeight = windowHeight;
     gameState.camera = camera;
     gameState.mesh = cube2;
     gameState.mesh.texture = suzanneTexture;
+    
+    KEY_SPACE = VK_SPACE;
+
     initialzeGameState(&gameState);
 
     f32 deltaTime = 0;
@@ -767,18 +786,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     while(isRunning){
         MSG msg = { };
         while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)){
-            if(keyInputs[VK_ESCAPE]){
-                isRunning = false;
-            }
-
-            if(msg.message == WM_KEYDOWN){
-                keyInputs[msg.wParam] = true;
-            }else if(msg.message == WM_KEYUP){
-                keyInputs[msg.wParam] = false;
-            }
-
             TranslateMessage(&msg);
             DispatchMessage(&msg);
+        }
+
+        if(keyInputs[VK_ESCAPE]){
+            isRunning = false;
         }
 
         if(updateCamera){
@@ -878,16 +891,17 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             camera.position -= camera.up * deltaTime * camera.moveSpeed;
         }
 
+        gameState.keyInputs = keyInputs;
+
         updateCameraView(&camera);
         updateGameState(&gameState);
 
         gameState.camera = camera;
         gameState.light = light;
-        d3d11Context->ClearRenderTargetView(renderTargetView, clearColor.v);
+        d3d11Context->ClearRenderTargetView(renderTargetView, gameState.clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
-
         renderTexturedMeshBuffer(&gameState.txtdMeshBuffer, &camera, &light);
         renderDebugBuffer(&gameState.debugBuffer, &camera);
         renderTextBuffer(&gameState.textBuffer);
