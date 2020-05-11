@@ -6,10 +6,7 @@ static void addTextToBuffer(const s8* str, f32 x, f32 y, f32 scale, Vector4 colo
     const s8* c = str;
     u32 ctr = 0;
     u32 idx = buffer->totalStrings++;
-    while(*c != '\0'){
-        buffer->strings[idx][ctr++] = *c;
-        c++;
-    }
+    concatenateCharacterStrings(buffer->strings[idx], (s8*)str, &ctr);
     buffer->colors[idx] = color;
     buffer->xPositions[idx] = x;
     buffer->yPositions[idx] = y;
@@ -86,20 +83,126 @@ static void addTexturedMeshToBuffer(TexturedMesh* mesh, Vector3 position, Vector
     tmb->indexAddons[idx] = mesh->indexAddon;
 }
 
+static void updateCameraWithMouse(GameState* state){
+    Camera* camera = &state->camera;
+    f32 deltaTime = state->deltaTime;
+    if(state->updateCamera){
+        f32 xDif = state->mousePosition.x - state->windowDimenstion.x * 0.5;
+        f32 yDif = state->mousePosition.y - state->windowDimenstion.y * 0.5;
+        rotate(&camera->orientation, camera->up, deltaTime * xDif * camera->mouseSensitivity);
+        rotate(&camera->orientation, camera->right, deltaTime * yDif * camera->mouseSensitivity);
+        state->updateCamera = false;
+    }
+}
+
+static void updateCameraWithKeyboard(GameState* state){
+    f32 deltaTime = state->deltaTime;
+    bool* keyInputs = state->keyInputs;
+    Camera* camera = &state->camera;
+    if(keyInputs[KEY_W]){
+        camera->position -= camera->forward * deltaTime * camera->moveSpeed;
+    }
+    if(keyInputs[KEY_S]){
+        camera->position += camera->forward * deltaTime * camera->moveSpeed;
+    }
+    if(keyInputs[KEY_A]){
+       camera->position += camera->right * deltaTime * camera->moveSpeed;
+    }
+    if(keyInputs[KEY_D]){
+        camera->position -= camera->right * deltaTime * camera->moveSpeed;
+    }
+    if(keyInputs[KEY_R]){
+       camera->position -= camera->up * deltaTime * camera->moveSpeed;
+    }
+    if(keyInputs[KEY_F]){
+        camera->position += camera->up * deltaTime * camera->moveSpeed;
+    }
+
+    if(keyInputs[KEY_UP]){
+        rotate(&camera->orientation, camera->right, -deltaTime * camera->rotateSpeed);
+    }
+    if(keyInputs[KEY_DOWN]){
+        rotate(&camera->orientation, camera->right, deltaTime * camera->rotateSpeed);
+    }
+    if(keyInputs[KEY_LEFT]){
+        rotate(&camera->orientation, camera->up, -deltaTime * camera->rotateSpeed);
+    }
+    if(keyInputs[KEY_RIGHT]){
+        rotate(&camera->orientation, camera->up, deltaTime * camera->rotateSpeed);
+    }
+    if(keyInputs[KEY_Q]){
+        rotate(&camera->orientation, camera->forward, deltaTime * camera->rotateSpeed);
+    }
+    if(keyInputs[KEY_E]){
+        rotate(&camera->orientation, camera->forward, -deltaTime * camera->rotateSpeed);
+    }
+}
+
+static void updateCameraWithGamepad(GameState* state){
+    f32 deltaTime = state->deltaTime;
+    Camera* camera = &state->camera;
+    Gamepad* gamepad1 = &state->gamepad1;
+    if(gamepad1->rightStickX > 0.05 || gamepad1->rightStickX < -0.05){
+        rotate(&camera->orientation, camera->up, deltaTime * camera->rotateSpeed * gamepad1->rightStickX);
+    }
+    if(gamepad1->rightStickY > 0.05 || gamepad1->rightStickY < -0.05){
+        rotate(&camera->orientation, camera->right, deltaTime * camera->rotateSpeed * gamepad1->rightStickY);
+    }
+    if(gamepad1->leftTrigger > 0.05){
+        rotate(&camera->orientation, camera->forward, deltaTime * camera->rotateSpeed * gamepad1->leftTrigger);
+    }
+    if(gamepad1->rightTrigger > 0.05){
+        rotate(&camera->orientation, camera->forward, -deltaTime * camera->rotateSpeed * gamepad1->rightTrigger);
+    }
+    if(gamepad1->leftStickX > 0.05 || gamepad1->leftStickX < -0.05){
+        camera->position -= camera->right * deltaTime * camera->moveSpeed * gamepad1->leftStickX;
+    }
+    if(gamepad1->leftStickY > 0.05 || gamepad1->leftStickY < -0.05){
+        camera->position -= camera->forward * deltaTime * camera->moveSpeed * gamepad1->leftStickY;
+    }
+    if(gamepad1->buttons[GAMEPAD_LB]){
+        camera->position += camera->up * deltaTime * camera->moveSpeed;
+    }
+    if(gamepad1->buttons[GAMEPAD_RB]){
+        camera->position -= camera->up * deltaTime * camera->moveSpeed;
+    }
+}
+
 static void initialzeGameState(GameState* state){
     TextBuffer* tb = &state->textBuffer;
-    tb->debugPrinterStartY = state->windowHeight - 50;
+    tb->debugPrinterStartY = state->windowDimenstion.y - 50;
     tb->debugPrinterX = 25;
     tb->debugPrinterY = tb->debugPrinterStartY;
 
+    state->camera.position.z -= 5;
+    state->camera.moveSpeed = 3;
+    state->camera.rotateSpeed = 1;
+    state->camera.mouseSensitivity = 0.1;
+
+    state->camera.projection = createPerspectiveProjection(70.0, (f32)state->windowDimenstion.x / (f32)state->windowDimenstion.y, 0.001, 1000.0);
+
+    state->light.position = Vector3(5, 5, -3);
+    state->light.diffuse = Vector3(1, 1, 1);
+
+    state->storage.tempMemoryBuffer = (u8*)state->osFunctions.allocateMemory(MEGABYTE(32));
+
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
+    state->gameResolution = Vector2(800, 450);
+
+    state->mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
+    state->mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
 }
 
 static void updateGameState(GameState* state){
+    updateCameraWithMouse(state);
+    updateCameraWithKeyboard(state);
+    updateCameraWithGamepad(state);
+    
     if(state->keyInputs[KEY_SPACE]){
         debugPrint(state, "SPACE IS PRESSED");
     }
-
+    
     debugCube(state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), state);
+
     addTexturedMeshToBuffer(&state->mesh, Vector3(0), Vector3(1), Quaternion(), state);
 }

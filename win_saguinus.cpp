@@ -9,13 +9,15 @@ static u32 windowWidth = 800;
 static u32 windowHeight = 450;
 static s32 halfWindowWidth = windowWidth * 0.5;
 static s32 halfWindowHeight = windowHeight * 0.5;
-static bool updateCamera = false;
-Vector4 clearColor(0.5, 0.2, 0.8, 1);
 
 static void checkError(HRESULT err, LPCSTR msg){
     if(err != S_OK){
         MessageBox(0, msg, "ERROR", 0);
     }
+}
+
+static void* allocateMemory(u32 amount){
+    return VirtualAlloc(0, amount, MEM_COMMIT, PAGE_READWRITE);
 }
 
 static void readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
@@ -517,7 +519,6 @@ static void renderTextBuffer(TextBuffer* buffer){
 
             c++;
         }
-
         
         textRenderer.pixelConstants.color = buffer->colors[i];
         d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
@@ -573,15 +574,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             screenCenter.x = halfWindowWidth;
             screenCenter.y = halfWindowHeight;
             ClientToScreen(hwnd, &screenCenter);
+            break;
         }
         case WM_MOUSEMOVE:{
             GetCursorPos(&mousePosition);
             ScreenToClient(hwnd, &mousePosition);
             if(mousePosition.x != gameState.mousePosition.x || mousePosition.y != gameState.mousePosition.y){
                 gameState.mousePosition = Vector2(mousePosition.x, mousePosition.y);
-                updateCamera = true;
+                gameState.updateCamera = true;
+                SetCursorPos(screenCenter.x, screenCenter.y);
             }
             
+            break;
+        }
+        case WM_GETMINMAXINFO :{
+            MINMAXINFO* info = (MINMAXINFO*)lParam;
+            info->ptMinTrackSize.x = gameState.gameResolution.x;
+            info->ptMinTrackSize.y = gameState.gameResolution.y;
             break;
         }
         case WM_KEYDOWN:{
@@ -592,12 +601,76 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             keyInputs[wParam] = false;
             break;
         }
+        case WM_LBUTTONDOWN :{
+            mouseInputs[MOUSE_BUTTON_LEFT] = true;
+            break;
+        }     
+        case WM_LBUTTONUP :{
+            mouseInputs[MOUSE_BUTTON_LEFT] = false;
+            break;  
+        }
+        case WM_MBUTTONDOWN :{
+            mouseInputs[MOUSE_BUTTON_MIDDLE] = true;
+            break;
+        }     
+        case WM_MBUTTONUP :{
+            mouseInputs[MOUSE_BUTTON_MIDDLE] = false;
+            break;  
+        }       
+        case WM_RBUTTONDOWN :{
+            mouseInputs[MOUSE_BUTTON_RIGHT] = true;
+            break;
+        }     
+        case WM_RBUTTONUP :{
+            mouseInputs[MOUSE_BUTTON_RIGHT] = false;
+            break;  
+        }case WM_MOUSEWHEEL:{
+            gameState.mouseScrollDelta = (s16)HIWORD(wParam) / WHEEL_DELTA;
+            break;
+        }         
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);    
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
+    IXAudio2* pXAudio2 = 0;
+    checkError(XAudio2Create(&pXAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR), "Could not initialize XAudio2");
+    IXAudio2MasteringVoice* pMasterVoice = 0;
+    CoInitialize(0);
+    checkError(pXAudio2->CreateMasteringVoice(&pMasterVoice), "Could not create mastering voice");
+
+    const u32 tot = 44100;
+    s8 soundByte[tot];
+    for(u32 i = 0; i < tot; i++){
+        soundByte[i] = ((i % 256) - 128);
+    }
+
+    WAVEFORMATEX wft = {};         
+    wft.wFormatTag = WAVE_FORMAT_PCM;
+    wft.nChannels = 1;
+    wft.nSamplesPerSec = tot;
+    wft.nAvgBytesPerSec = tot;
+    wft.nBlockAlign = 1;
+    wft.wBitsPerSample = 8;
+    wft.cbSize = 0;
+
+    XAUDIO2_BUFFER audioBuffer = {}; 
+    audioBuffer.Flags = XAUDIO2_END_OF_STREAM;
+    audioBuffer.AudioBytes = tot;
+    audioBuffer.pAudioData = (const BYTE*)soundByte;
+    audioBuffer.PlayBegin = 0;
+    audioBuffer.PlayLength = tot;
+    audioBuffer.LoopBegin = 0;
+    audioBuffer.LoopLength = 0;
+    audioBuffer.LoopCount = 0;
+    audioBuffer.pContext = 0;  
+
+    IXAudio2SourceVoice* pSourceVoice;
+    checkError(pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wft), "Could not create source voice");
+    checkError(pSourceVoice->SubmitSourceBuffer(&audioBuffer), "Could not submit audio buffer");
+    checkError(pSourceVoice->Start(0), "Could not play sound");
+
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
 
     WNDCLASS wc = { };
@@ -732,34 +805,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     initializeTexturedMeshRenderer();
     initializeDebugRenderer();
 
-    u32 fileSize;
-    readFileIntoBuffer("suzanne.texpix", tempStorageBuffer, &fileSize);
-    u8* fileData = tempStorageBuffer;
-    u32 imgWidth = *(u32*)fileData;
-    fileData += 4;
-    u32 imgHeight = *(u32*)fileData;
-    fileData += 4;
-    Texture2D suzanneTexture = createTexture2D(fileData, imgWidth, imgHeight, 4);
-
-    TexturedMesh cube2 = createTexturedMesh("suzanne.texmesh");
-    cube2.texture = suzanneTexture;
-    
-    Camera camera;
-    camera.position.z -= 5;
-    camera.moveSpeed = 3;
-    camera.rotateSpeed = 1;
-    camera.mouseSensitivity = 0.1;
-
-    camera.projection = createPerspectiveProjection(70.0, (f32)windowWidth / (f32)windowHeight, 0.001, 1000.0);
-
-    PointLight light;
-    light.position = Vector3(5, 5, -3);
-    light.diffuse = Vector3(1, 1, 1);
-
-    // screenCenter.x = halfWindowWidth;
-    // screenCenter.y = halfWindowHeight;
-    // ClientToScreen(hwnd, &screenCenter);
-    // SetCursorPos(screenCenter.x, screenCenter.y);
     //ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
     bool isRunning = true;
@@ -770,13 +815,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             break;
         }
     }
-    gameState.windowWidth = windowWidth;
-    gameState.windowHeight = windowHeight;
-    gameState.camera = camera;
-    gameState.mesh = cube2;
-    gameState.mesh.texture = suzanneTexture;
-    
-    KEY_SPACE = VK_SPACE;
+
+    initializeKeyCodes();
+    gameState.windowDimenstion = Vector2(windowWidth, windowHeight);
+    gameState.osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
+    gameState.osFunctions.createTexture2D = &createTexture2D;
+    gameState.osFunctions.createTexturedMesh = &createTexturedMesh;
+    gameState.osFunctions.allocateMemory = &allocateMemory;
+    gameState.keyInputs = keyInputs;
+    gameState.mouseInputs = mouseInputs;
 
     initialzeGameState(&gameState);
 
@@ -794,122 +841,48 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             isRunning = false;
         }
 
-        if(updateCamera){
-            f32 xDif = mousePosition.x - halfWindowWidth;
-            f32 yDif = mousePosition.y - halfWindowHeight;
-            rotate(&camera.orientation, camera.up, deltaTime * xDif * camera.mouseSensitivity);
-            rotate(&camera.orientation, camera.right, deltaTime * yDif * camera.mouseSensitivity);
-            SetCursorPos(screenCenter.x, screenCenter.y);
-            updateCamera = false;
-        }
-
-        if(keyInputs[KEY_W]){
-            camera.position -= camera.forward * deltaTime * camera.moveSpeed;
-        }
-        if(keyInputs[KEY_S]){
-            camera.position += camera.forward * deltaTime * camera.moveSpeed;
-        }
-        if(keyInputs[KEY_A]){
-           camera.position += camera.right * deltaTime * camera.moveSpeed;
-        }
-        if(keyInputs[KEY_D]){
-            camera.position -= camera.right * deltaTime * camera.moveSpeed;
-        }
-        if(keyInputs[KEY_R]){
-           camera.position -= camera.up * deltaTime * camera.moveSpeed;
-        }
-        if(keyInputs[KEY_F]){
-            camera.position += camera.up * deltaTime * camera.moveSpeed;
-        }
-
-        if(keyInputs[KEY_UP]){
-            rotate(&camera.orientation, camera.right, -deltaTime * camera.rotateSpeed);
-        }
-        if(keyInputs[KEY_DOWN]){
-            rotate(&camera.orientation, camera.right, deltaTime * camera.rotateSpeed);
-        }
-        if(keyInputs[KEY_LEFT]){
-            rotate(&camera.orientation, camera.up, -deltaTime * camera.rotateSpeed);
-        }
-        if(keyInputs[KEY_RIGHT]){
-            rotate(&camera.orientation, camera.up, deltaTime * camera.rotateSpeed);
-        }
-        if(keyInputs[KEY_Q]){
-            rotate(&camera.orientation, camera.forward, deltaTime * camera.rotateSpeed);
-        }
-        if(keyInputs[KEY_E]){
-            rotate(&camera.orientation, camera.forward, -deltaTime * camera.rotateSpeed);
-        }
-
         if(XInputGetState(gamepad1.index, &gamepad1.state) == ERROR_SUCCESS 
         && gamepad1.state.dwPacketNumber != gamepad1.lastPacket){
-            gamepad1.leftStickX = (f32)gamepad1.state.Gamepad.sThumbLX / GAMEPAD_STICK_MAX;
-            gamepad1.leftStickY = (f32)gamepad1.state.Gamepad.sThumbLY / GAMEPAD_STICK_MAX;
-            gamepad1.rightStickX = (f32)gamepad1.state.Gamepad.sThumbRX / GAMEPAD_STICK_MAX;
-            gamepad1.rightStickY = (f32)gamepad1.state.Gamepad.sThumbRY / GAMEPAD_STICK_MAX;
-            gamepad1.leftTrigger = (f32)gamepad1.state.Gamepad.bLeftTrigger / GAMEPAD_TRIGGER_MAX;
-            gamepad1.rightTrigger = (f32)gamepad1.state.Gamepad.bRightTrigger / GAMEPAD_TRIGGER_MAX;
+            gameState.gamepad1.leftStickX = (f32)gamepad1.state.Gamepad.sThumbLX / GAMEPAD_STICK_MAX;
+            gameState.gamepad1.leftStickY = (f32)gamepad1.state.Gamepad.sThumbLY / GAMEPAD_STICK_MAX;
+            gameState.gamepad1.rightStickX = (f32)gamepad1.state.Gamepad.sThumbRX / GAMEPAD_STICK_MAX;
+            gameState.gamepad1.rightStickY = (f32)gamepad1.state.Gamepad.sThumbRY / GAMEPAD_STICK_MAX;
+            gameState.gamepad1.leftTrigger = (f32)gamepad1.state.Gamepad.bLeftTrigger / GAMEPAD_TRIGGER_MAX;
+            gameState.gamepad1.rightTrigger = (f32)gamepad1.state.Gamepad.bRightTrigger / GAMEPAD_TRIGGER_MAX;
 
-            gamepad1.buttons[GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
-            gamepad1.buttons[GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
-            gamepad1.buttons[GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
-            gamepad1.buttons[GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
-            gamepad1.buttons[GAMEPAD_LB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
-            gamepad1.buttons[GAMEPAD_RB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
-            gamepad1.buttons[GAMEPAD_L3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
-            gamepad1.buttons[GAMEPAD_R3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
-            gamepad1.buttons[GAMEPAD_D_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
-            gamepad1.buttons[GAMEPAD_D_DONW] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
-            gamepad1.buttons[GAMEPAD_D_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
-            gamepad1.buttons[GAMEPAD_D_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
-            gamepad1.buttons[GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
-            gamepad1.buttons[GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
+            gameState.gamepad1.buttons[GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
+            gameState.gamepad1.buttons[GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
+            gameState.gamepad1.buttons[GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
+            gameState.gamepad1.buttons[GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
+            gameState.gamepad1.buttons[GAMEPAD_LB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
+            gameState.gamepad1.buttons[GAMEPAD_RB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+            gameState.gamepad1.buttons[GAMEPAD_L3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
+            gameState.gamepad1.buttons[GAMEPAD_R3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
+            gameState.gamepad1.buttons[GAMEPAD_D_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
+            gameState.gamepad1.buttons[GAMEPAD_D_DONW] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+            gameState.gamepad1.buttons[GAMEPAD_D_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+            gameState.gamepad1.buttons[GAMEPAD_D_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+            gameState.gamepad1.buttons[GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
+            gameState.gamepad1.buttons[GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
         }
-
-        if(gamepad1.rightStickX > 0.05 || gamepad1.rightStickX < -0.05){
-            rotate(&camera.orientation, camera.up, deltaTime * camera.rotateSpeed * gamepad1.rightStickX);
-        }
-        if(gamepad1.rightStickY > 0.05 || gamepad1.rightStickY < -0.05){
-            rotate(&camera.orientation, camera.right, deltaTime * camera.rotateSpeed * gamepad1.rightStickY);
-        }
-        if(gamepad1.leftTrigger > 0.05){
-            rotate(&camera.orientation, camera.forward, deltaTime * camera.rotateSpeed * gamepad1.leftTrigger);
-        }
-        if(gamepad1.rightTrigger > 0.05){
-            rotate(&camera.orientation, camera.forward, -deltaTime * camera.rotateSpeed * gamepad1.rightTrigger);
-        }
-        if(gamepad1.leftStickX > 0.05 || gamepad1.leftStickX < -0.05){
-            camera.position -= camera.right * deltaTime * camera.moveSpeed * gamepad1.leftStickX;
-        }
-        if(gamepad1.leftStickY > 0.05 || gamepad1.leftStickY < -0.05){
-            camera.position -= camera.forward * deltaTime * camera.moveSpeed * gamepad1.leftStickY;
-        }
-        if(gamepad1.buttons[GAMEPAD_LB]){
-            camera.position += camera.up * deltaTime * camera.moveSpeed;
-        }
-        if(gamepad1.buttons[GAMEPAD_RB]){
-            camera.position -= camera.up * deltaTime * camera.moveSpeed;
-        }
-
-        gameState.keyInputs = keyInputs;
-
-        updateCameraView(&camera);
+        
+        updateCameraView(&gameState.camera);
+        
         updateGameState(&gameState);
 
-        gameState.camera = camera;
-        gameState.light = light;
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState.clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
-        renderTexturedMeshBuffer(&gameState.txtdMeshBuffer, &camera, &light);
-        renderDebugBuffer(&gameState.debugBuffer, &camera);
+        renderTexturedMeshBuffer(&gameState.txtdMeshBuffer, &gameState.camera, &gameState.light);
+        renderDebugBuffer(&gameState.debugBuffer, &gameState.camera);
         renderTextBuffer(&gameState.textBuffer);
+        
 
         swapChain->Present(1, 0);
 
         endTime = GetTickCount64();
-        deltaTime = (f32)(endTime - startTime) / 1000.0f;
+        gameState.deltaTime = (f32)(endTime - startTime) / 1000.0f;
         startTime = endTime;
     }
 

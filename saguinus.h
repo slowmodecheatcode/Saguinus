@@ -6,7 +6,78 @@
 #define MAX_DEBUG_LINES 256
 #define MAX_TEXTURED_MESHES 256
 
-static u32 KEY_SPACE;
+static u8 KEY_0;
+static u8 KEY_1;
+static u8 KEY_2;
+static u8 KEY_3;
+static u8 KEY_4;
+static u8 KEY_5;
+static u8 KEY_6;
+static u8 KEY_7;
+static u8 KEY_8;
+static u8 KEY_9;
+static u8 KEY_A;
+static u8 KEY_B;
+static u8 KEY_C;
+static u8 KEY_D;
+static u8 KEY_E;
+static u8 KEY_F;
+static u8 KEY_G;
+static u8 KEY_H;
+static u8 KEY_I;
+static u8 KEY_J;
+static u8 KEY_K;
+static u8 KEY_L;
+static u8 KEY_M;
+static u8 KEY_N;
+static u8 KEY_O;
+static u8 KEY_P;
+static u8 KEY_Q;
+static u8 KEY_R;
+static u8 KEY_S;
+static u8 KEY_T;
+static u8 KEY_U;
+static u8 KEY_V;
+static u8 KEY_W;
+static u8 KEY_X;
+static u8 KEY_Y;
+static u8 KEY_Z;
+static u8 KEY_F1;
+static u8 KEY_F2;
+static u8 KEY_F3;
+static u8 KEY_F4;
+static u8 KEY_F5;
+static u8 KEY_F6;
+static u8 KEY_F7;
+static u8 KEY_F8;
+static u8 KEY_F9;
+static u8 KEY_F10;
+static u8 KEY_F11;
+static u8 KEY_F12;
+static u8 KEY_LEFT_SHIFT;
+static u8 KEY_RIGHT_SHIFT;
+static u8 KEY_LEFT_CTRL;
+static u8 KEY_RIGHT_CTRL;
+static u8 KEY_UP;
+static u8 KEY_DOWN;
+static u8 KEY_LEFT;
+static u8 KEY_RIGHT;
+static u8 KEY_SPACE;
+
+static u8 GAMEPAD_A;
+static u8 GAMEPAD_B;
+static u8 GAMEPAD_X;
+static u8 GAMEPAD_Y;
+static u8 GAMEPAD_LB;
+static u8 GAMEPAD_RB;
+static u8 GAMEPAD_L3;
+static u8 GAMEPAD_R3;
+static u8 GAMEPAD_D_UP;
+static u8 GAMEPAD_D_DONW;
+static u8 GAMEPAD_D_LEFT;
+static u8 GAMEPAD_D_RIGHT;
+static u8 GAMEPAD_START;
+static u8 GAMEPAD_BACK;
 
 struct Texture2D {
     void* texture;
@@ -75,21 +146,52 @@ struct DebugBuffer {
     u32 totalLines;
 };
 
+struct OSFunctions {
+    void* (*allocateMemory)(u32 amount);
+    void (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
+    Texture2D (*createTexture2D)(const s8* fileName, u32 bytesPerPixel);
+    TexturedMesh (*createTexturedMesh)(const s8* fileName);
+};
+
+struct MemoryStorage {
+    u8* tempMemoryBuffer;
+};
+
+struct Gamepad {
+    bool buttons[16];
+    f32 leftStickX;
+    f32 leftStickY;
+    f32 rightStickX;
+    f32 rightStickY;
+    f32 leftTrigger;
+    f32 rightTrigger;
+};
+
 struct GameState {
     TextBuffer textBuffer;
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
 
+    OSFunctions osFunctions;
+    MemoryStorage storage;
+
     Camera camera;
     PointLight light;
+
+    Gamepad gamepad1;
 
     TexturedMesh mesh;
 
     Vector4 clearColor;
     Vector2 mousePosition;
 
-    bool* keyInputs;
+    Vector2 windowDimenstion;
+    Vector2 gameResolution;
 
-    u32 windowWidth;
-    u32 windowHeight;
+    bool* keyInputs;
+    bool* mouseInputs;
+    f32 deltaTime;
+    s32 mouseScrollDelta;
+
+    bool updateCamera;
 }gameState;
