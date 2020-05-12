@@ -1,83 +1,87 @@
 #pragma once
 
+#include "debug_font.h"
+#include "graphics_utilities.h"
+
 #define MAX_STRINGS 256
 #define MAX_STRING_LENGTH 256
 #define MAX_DEBUG_CUBES 256
 #define MAX_DEBUG_LINES 256
 #define MAX_TEXTURED_MESHES 256
 
-static u8 KEY_0;
-static u8 KEY_1;
-static u8 KEY_2;
-static u8 KEY_3;
-static u8 KEY_4;
-static u8 KEY_5;
-static u8 KEY_6;
-static u8 KEY_7;
-static u8 KEY_8;
-static u8 KEY_9;
-static u8 KEY_A;
-static u8 KEY_B;
-static u8 KEY_C;
-static u8 KEY_D;
-static u8 KEY_E;
-static u8 KEY_F;
-static u8 KEY_G;
-static u8 KEY_H;
-static u8 KEY_I;
-static u8 KEY_J;
-static u8 KEY_K;
-static u8 KEY_L;
-static u8 KEY_M;
-static u8 KEY_N;
-static u8 KEY_O;
-static u8 KEY_P;
-static u8 KEY_Q;
-static u8 KEY_R;
-static u8 KEY_S;
-static u8 KEY_T;
-static u8 KEY_U;
-static u8 KEY_V;
-static u8 KEY_W;
-static u8 KEY_X;
-static u8 KEY_Y;
-static u8 KEY_Z;
-static u8 KEY_F1;
-static u8 KEY_F2;
-static u8 KEY_F3;
-static u8 KEY_F4;
-static u8 KEY_F5;
-static u8 KEY_F6;
-static u8 KEY_F7;
-static u8 KEY_F8;
-static u8 KEY_F9;
-static u8 KEY_F10;
-static u8 KEY_F11;
-static u8 KEY_F12;
-static u8 KEY_LEFT_SHIFT;
-static u8 KEY_RIGHT_SHIFT;
-static u8 KEY_LEFT_CTRL;
-static u8 KEY_RIGHT_CTRL;
-static u8 KEY_UP;
-static u8 KEY_DOWN;
-static u8 KEY_LEFT;
-static u8 KEY_RIGHT;
-static u8 KEY_SPACE;
-
-static u8 GAMEPAD_A;
-static u8 GAMEPAD_B;
-static u8 GAMEPAD_X;
-static u8 GAMEPAD_Y;
-static u8 GAMEPAD_LB;
-static u8 GAMEPAD_RB;
-static u8 GAMEPAD_L3;
-static u8 GAMEPAD_R3;
-static u8 GAMEPAD_D_UP;
-static u8 GAMEPAD_D_DONW;
-static u8 GAMEPAD_D_LEFT;
-static u8 GAMEPAD_D_RIGHT;
-static u8 GAMEPAD_START;
-static u8 GAMEPAD_BACK;
+struct InputCodes {
+    u8 KEY_0;
+    u8 KEY_1;
+    u8 KEY_2;
+    u8 KEY_3;
+    u8 KEY_4;
+    u8 KEY_5;
+    u8 KEY_6;
+    u8 KEY_7;
+    u8 KEY_8;
+    u8 KEY_9;
+    u8 KEY_A;
+    u8 KEY_B;
+    u8 KEY_C;
+    u8 KEY_D;
+    u8 KEY_E;
+    u8 KEY_F;
+    u8 KEY_G;
+    u8 KEY_H;
+    u8 KEY_I;
+    u8 KEY_J;
+    u8 KEY_K;
+    u8 KEY_L;
+    u8 KEY_M;
+    u8 KEY_N;
+    u8 KEY_O;
+    u8 KEY_P;
+    u8 KEY_Q;
+    u8 KEY_R;
+    u8 KEY_S;
+    u8 KEY_T;
+    u8 KEY_U;
+    u8 KEY_V;
+    u8 KEY_W;
+    u8 KEY_X;
+    u8 KEY_Y;
+    u8 KEY_Z;
+    u8 KEY_F1;
+    u8 KEY_F2;
+    u8 KEY_F3;
+    u8 KEY_F4;
+    u8 KEY_F5;
+    u8 KEY_F6;
+    u8 KEY_F7;
+    u8 KEY_F8;
+    u8 KEY_F9;
+    u8 KEY_F10;
+    u8 KEY_F11;
+    u8 KEY_F12;
+    u8 KEY_LEFT_SHIFT;
+    u8 KEY_RIGHT_SHIFT;
+    u8 KEY_LEFT_CTRL;
+    u8 KEY_RIGHT_CTRL;
+    u8 KEY_UP;
+    u8 KEY_DOWN;
+    u8 KEY_LEFT;
+    u8 KEY_RIGHT;
+    u8 KEY_SPACE;
+    u8 GAMEPAD_A;
+    u8 GAMEPAD_B;
+    u8 GAMEPAD_X;
+    u8 GAMEPAD_Y;
+    u8 GAMEPAD_LB;
+    u8 GAMEPAD_RB;
+    u8 GAMEPAD_L3;
+    u8 GAMEPAD_R3;
+    u8 GAMEPAD_D_UP;
+    u8 GAMEPAD_D_DONW;
+    u8 GAMEPAD_D_LEFT;
+    u8 GAMEPAD_D_RIGHT;
+    u8 GAMEPAD_START;
+    u8 GAMEPAD_BACK;
+};
 
 struct Texture2D {
     void* texture;
@@ -172,6 +176,7 @@ struct GameState {
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
 
+    InputCodes inputCodes;
     OSFunctions osFunctions;
     MemoryStorage storage;
 

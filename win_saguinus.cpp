@@ -1,6 +1,3 @@
-#include "debug_font.h"
-#include "graphics_utilities.h"
-
 #include "saguinus.cpp"
 
 #include "win_saguinus.h"
@@ -164,8 +161,8 @@ static void initializeTexturedMeshRenderer(){
     checkError(hr, "Error creating pixel constant buffer");
 
     u8 tex[] = {
-        0, 255, 0, 255,     0, 0, 255, 255,
-        0, 0, 255, 255,     0, 255, 0, 255
+        200, 200, 200, 255,     100, 100, 100, 255,
+        100, 100, 100, 255,     200, 200, 200, 255
     };
     texturedMeshRenderer.defaultTexture = createTexture2D(tex, 2, 2, 4);
 }
@@ -668,8 +665,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     IXAudio2SourceVoice* pSourceVoice;
     checkError(pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wft), "Could not create source voice");
-    checkError(pSourceVoice->SubmitSourceBuffer(&audioBuffer), "Could not submit audio buffer");
-    checkError(pSourceVoice->Start(0), "Could not play sound");
+    checkError(pSourceVoice->SetVolume(0.001), "Could not set volume");
 
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
 
@@ -816,7 +812,19 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
     }
 
-    initializeKeyCodes();
+    HMODULE dllPtr = LoadLibrary("libsaguinus.dll");
+    if(dllPtr == 0){
+        MessageBox(0, "Could not load library libsaguinus.dll", "ERROR", 0);
+        return 1;
+    }
+    typedef void (*ugsptr)(GameState*);
+    ugsptr updateGS = 0;
+    updateGS = (ugsptr)GetProcAddress(dllPtr, "updateGameState");
+    if(updateGS == 0){
+        MessageBox(0, "Could not get address to updateGameState", "ERROR", 0);
+        return 1;
+    }
+
     gameState.windowDimenstion = Vector2(windowWidth, windowHeight);
     gameState.osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
     gameState.osFunctions.createTexture2D = &createTexture2D;
@@ -824,8 +832,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState.osFunctions.allocateMemory = &allocateMemory;
     gameState.keyInputs = keyInputs;
     gameState.mouseInputs = mouseInputs;
-
+    initializeKeyCodes(&gameState);
     initialzeGameState(&gameState);
+
+    bool spaceDown = false;
 
     f32 deltaTime = 0;
     u64 endTime = 0;
@@ -850,25 +860,35 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             gameState.gamepad1.leftTrigger = (f32)gamepad1.state.Gamepad.bLeftTrigger / GAMEPAD_TRIGGER_MAX;
             gameState.gamepad1.rightTrigger = (f32)gamepad1.state.Gamepad.bRightTrigger / GAMEPAD_TRIGGER_MAX;
 
-            gameState.gamepad1.buttons[GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
-            gameState.gamepad1.buttons[GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
-            gameState.gamepad1.buttons[GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
-            gameState.gamepad1.buttons[GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
-            gameState.gamepad1.buttons[GAMEPAD_LB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
-            gameState.gamepad1.buttons[GAMEPAD_RB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
-            gameState.gamepad1.buttons[GAMEPAD_L3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
-            gameState.gamepad1.buttons[GAMEPAD_R3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
-            gameState.gamepad1.buttons[GAMEPAD_D_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
-            gameState.gamepad1.buttons[GAMEPAD_D_DONW] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
-            gameState.gamepad1.buttons[GAMEPAD_D_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
-            gameState.gamepad1.buttons[GAMEPAD_D_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
-            gameState.gamepad1.buttons[GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
-            gameState.gamepad1.buttons[GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_LEFT_SHOULDER] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_RIGHT_SHOULDER] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_LEFT_THUMB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_RIGHT_THUMB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_DOWN] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
+            gameState.gamepad1.buttons[XINPUT_GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
         }
         
+        if(keyInputs[gameState.inputCodes.KEY_SPACE] && !spaceDown){
+            checkError(pSourceVoice->Stop(0), "Could not stop sound");
+            checkError(pSourceVoice->FlushSourceBuffers(), "Could not flush source buffer");
+            checkError(pSourceVoice->SubmitSourceBuffer(&audioBuffer), "Could not submit audio buffer");
+            checkError(pSourceVoice->Start(0), "Could not play sound");
+            spaceDown = true;
+        }else if(!keyInputs[gameState.inputCodes.KEY_SPACE]){
+            spaceDown = false;
+        }
+
         updateCameraView(&gameState.camera);
         
-        updateGameState(&gameState);
+        updateGS(&gameState);
 
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState.clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);

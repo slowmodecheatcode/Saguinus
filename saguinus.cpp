@@ -99,41 +99,42 @@ static void updateCameraWithKeyboard(GameState* state){
     f32 deltaTime = state->deltaTime;
     bool* keyInputs = state->keyInputs;
     Camera* camera = &state->camera;
-    if(keyInputs[KEY_W]){
+    InputCodes* c = &state->inputCodes;
+    if(keyInputs[c->KEY_W]){
         camera->position -= camera->forward * deltaTime * camera->moveSpeed;
     }
-    if(keyInputs[KEY_S]){
+    if(keyInputs[c->KEY_S]){
         camera->position += camera->forward * deltaTime * camera->moveSpeed;
     }
-    if(keyInputs[KEY_A]){
+    if(keyInputs[c->KEY_A]){
        camera->position += camera->right * deltaTime * camera->moveSpeed;
     }
-    if(keyInputs[KEY_D]){
+    if(keyInputs[c->KEY_D]){
         camera->position -= camera->right * deltaTime * camera->moveSpeed;
     }
-    if(keyInputs[KEY_R]){
+    if(keyInputs[c->KEY_R]){
        camera->position -= camera->up * deltaTime * camera->moveSpeed;
     }
-    if(keyInputs[KEY_F]){
+    if(keyInputs[c->KEY_F]){
         camera->position += camera->up * deltaTime * camera->moveSpeed;
     }
 
-    if(keyInputs[KEY_UP]){
+    if(keyInputs[c->KEY_UP]){
         rotate(&camera->orientation, camera->right, -deltaTime * camera->rotateSpeed);
     }
-    if(keyInputs[KEY_DOWN]){
+    if(keyInputs[c->KEY_DOWN]){
         rotate(&camera->orientation, camera->right, deltaTime * camera->rotateSpeed);
     }
-    if(keyInputs[KEY_LEFT]){
+    if(keyInputs[c->KEY_LEFT]){
         rotate(&camera->orientation, camera->up, -deltaTime * camera->rotateSpeed);
     }
-    if(keyInputs[KEY_RIGHT]){
+    if(keyInputs[c->KEY_RIGHT]){
         rotate(&camera->orientation, camera->up, deltaTime * camera->rotateSpeed);
     }
-    if(keyInputs[KEY_Q]){
+    if(keyInputs[c->KEY_Q]){
         rotate(&camera->orientation, camera->forward, deltaTime * camera->rotateSpeed);
     }
-    if(keyInputs[KEY_E]){
+    if(keyInputs[c->KEY_E]){
         rotate(&camera->orientation, camera->forward, -deltaTime * camera->rotateSpeed);
     }
 }
@@ -142,6 +143,7 @@ static void updateCameraWithGamepad(GameState* state){
     f32 deltaTime = state->deltaTime;
     Camera* camera = &state->camera;
     Gamepad* gamepad1 = &state->gamepad1;
+    InputCodes* c = &state->inputCodes;
     if(gamepad1->rightStickX > 0.05 || gamepad1->rightStickX < -0.05){
         rotate(&camera->orientation, camera->up, deltaTime * camera->rotateSpeed * gamepad1->rightStickX);
     }
@@ -160,10 +162,10 @@ static void updateCameraWithGamepad(GameState* state){
     if(gamepad1->leftStickY > 0.05 || gamepad1->leftStickY < -0.05){
         camera->position -= camera->forward * deltaTime * camera->moveSpeed * gamepad1->leftStickY;
     }
-    if(gamepad1->buttons[GAMEPAD_LB]){
+    if(gamepad1->buttons[c->GAMEPAD_LB]){
         camera->position += camera->up * deltaTime * camera->moveSpeed;
     }
-    if(gamepad1->buttons[GAMEPAD_RB]){
+    if(gamepad1->buttons[c->GAMEPAD_RB]){
         camera->position -= camera->up * deltaTime * camera->moveSpeed;
     }
 }
@@ -189,16 +191,16 @@ static void initialzeGameState(GameState* state){
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);
 
-    state->mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
-    state->mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
+    state->mesh = state->osFunctions.createTexturedMesh("character.texmesh");
 }
 
-static void updateGameState(GameState* state){
+extern "C" void updateGameState(GameState* state){
+    InputCodes* c = &state->inputCodes;
     updateCameraWithMouse(state);
     updateCameraWithKeyboard(state);
     updateCameraWithGamepad(state);
     
-    if(state->keyInputs[KEY_SPACE]){
+    if(state->keyInputs[c->KEY_SPACE]){
         debugPrint(state, "SPACE IS PRESSED");
     }
     

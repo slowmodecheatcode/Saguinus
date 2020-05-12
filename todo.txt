@@ -1,4 +1,6 @@
+implement 3d audio
 canvas renderer
+dynamic code reloading
 
 function timing
 use mapping to update constant buffers
@@ -10,4 +12,3 @@ improve lighting
 replace math.h's trig functions
 animated meshes
 look into getting rid of padding variables in constant buffer structs
-add audio
