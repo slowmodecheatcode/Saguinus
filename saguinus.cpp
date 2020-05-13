@@ -170,6 +170,17 @@ static void updateCameraWithGamepad(GameState* state){
     }
 }
 
+static bool keyPressedOnce(GameState* state, u32 key){
+    bool* keyInputs = state->keyInputs;
+    if(keyInputs[key] && !state->keyTracking[key]){
+        state->keyTracking[key] = true;
+        return true;
+    }else if(!keyInputs[key]){
+        state->keyTracking[key] = false;
+    }
+    return false;
+}
+
 static void initialzeGameState(GameState* state){
     TextBuffer* tb = &state->textBuffer;
     tb->debugPrinterStartY = state->windowDimenstion.y - 50;
@@ -195,6 +206,7 @@ static void initialzeGameState(GameState* state){
 }
 
 extern "C" void updateGameState(GameState* state){
+    state->clearColor = Vector4(1, 0, 0, 1);
     InputCodes* c = &state->inputCodes;
     updateCameraWithMouse(state);
     updateCameraWithKeyboard(state);

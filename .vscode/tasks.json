@@ -6,12 +6,17 @@
         {
             "label": "win_build",
             "type": "shell",
-            "command": "${workspaceFolder}/build",
+            "command": "${workspaceFolder}/build"
+        },
+        {
+            "label": "win_build_game",
+            "type": "shell",
+            "command": "${workspaceFolder}/build_game"
         },
         {
             "label": "win_run",
             "type": "shell",
             "command": "${workspaceFolder}/saguinus",
-        },
+        }
     ]
 }

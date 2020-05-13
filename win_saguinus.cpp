@@ -560,6 +560,50 @@ static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, Po
     tmb->totalMeshes = 0;
 }
 
+static void updateAudioEmitterDynamics(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt){
+    Vector3 etol = epos - lpos;
+    f32 len = length(etol);
+    len = maximumOf((10 - len) / 10, 0);
+    f32 dp = dot(normalOf(etol), lrgt);
+    dp = (dp + 1) * 0.5;
+    Vector2 nc(1 - dp, dp);
+    nc.x *= len;
+    nc.y *= len;
+    checkError(((IXAudio2SourceVoice*)ae.emitter)->SetChannelVolumes(2, nc.v), "Could not set channel volumes");
+}
+
+static void playAudioEmitter(AudioEmitter ae){
+    XAUDIO2_BUFFER audioBuffer = {}; 
+    audioBuffer.Flags = XAUDIO2_END_OF_STREAM;
+    audioBuffer.AudioBytes = ae.bufferSize;
+    audioBuffer.pAudioData = (const BYTE*)ae.buffer;
+    audioBuffer.PlayLength = ae.bufferSize / 2;
+    checkError(((IXAudio2SourceVoice*)ae.emitter)->Stop(0), "Could not stop sound");
+    checkError(((IXAudio2SourceVoice*)ae.emitter)->FlushSourceBuffers(), "Could not flush source buffer");
+    checkError(((IXAudio2SourceVoice*)ae.emitter)->SubmitSourceBuffer(&audioBuffer), "Could not submit audio buffer");
+    checkError(((IXAudio2SourceVoice*)ae.emitter)->Start(0), "Could not play sound");
+}
+
+static AudioEmitter createAudioEmitter(s8* data, u32 dataSize){
+    AudioEmitter ae;
+
+    WAVEFORMATEX wft = {};         
+    wft.wFormatTag = WAVE_FORMAT_PCM;
+    wft.nChannels = 2;
+    wft.nSamplesPerSec = dataSize / 2;
+    wft.nAvgBytesPerSec = dataSize;
+    wft.nBlockAlign = 2;
+    wft.wBitsPerSample = 8;
+
+    ae.buffer = data;
+    ae.bufferSize = dataSize;
+
+    IXAudio2SourceVoice* pSourceVoice;
+    checkError(XAudio2Pointer->CreateSourceVoice(&((IXAudio2SourceVoice*)ae.emitter), (WAVEFORMATEX*)&wft), "Could not create source voice");
+
+    return ae;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
         case WM_QUIT:
@@ -631,41 +675,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
-    IXAudio2* pXAudio2 = 0;
-    checkError(XAudio2Create(&pXAudio2, 0, XAUDIO2_DEFAULT_PROCESSOR), "Could not initialize XAudio2");
-    IXAudio2MasteringVoice* pMasterVoice = 0;
+    checkError(XAudio2Create(&XAudio2Pointer, 0, XAUDIO2_DEFAULT_PROCESSOR), "Could not initialize XAudio2");
     CoInitialize(0);
-    checkError(pXAudio2->CreateMasteringVoice(&pMasterVoice), "Could not create mastering voice");
+    checkError(XAudio2Pointer->CreateMasteringVoice(&XAudio2MasterVoice), "Could not create mastering voice");
+    checkError(XAudio2MasterVoice->SetVolume(0.002), "Could not set master volume");
 
-    const u32 tot = 44100;
+    const u32 tot = 44100 * 2;
     s8 soundByte[tot];
-    for(u32 i = 0; i < tot; i++){
+    for(u32 i = 0; i < tot; i += 2){
         soundByte[i] = ((i % 256) - 128);
+        soundByte[i + 1] = soundByte[i];
+    }
+    s8 soundByte2[tot];
+    for(u32 i = 0; i < tot; i += 2){
+        soundByte2[i] = ((i % 128) - 64);
+        soundByte2[i + 1] = soundByte2[i];
     }
 
-    WAVEFORMATEX wft = {};         
-    wft.wFormatTag = WAVE_FORMAT_PCM;
-    wft.nChannels = 1;
-    wft.nSamplesPerSec = tot;
-    wft.nAvgBytesPerSec = tot;
-    wft.nBlockAlign = 1;
-    wft.wBitsPerSample = 8;
-    wft.cbSize = 0;
-
-    XAUDIO2_BUFFER audioBuffer = {}; 
-    audioBuffer.Flags = XAUDIO2_END_OF_STREAM;
-    audioBuffer.AudioBytes = tot;
-    audioBuffer.pAudioData = (const BYTE*)soundByte;
-    audioBuffer.PlayBegin = 0;
-    audioBuffer.PlayLength = tot;
-    audioBuffer.LoopBegin = 0;
-    audioBuffer.LoopLength = 0;
-    audioBuffer.LoopCount = 0;
-    audioBuffer.pContext = 0;  
-
-    IXAudio2SourceVoice* pSourceVoice;
-    checkError(pXAudio2->CreateSourceVoice(&pSourceVoice, (WAVEFORMATEX*)&wft), "Could not create source voice");
-    checkError(pSourceVoice->SetVolume(0.001), "Could not set volume");
+    AudioEmitter e1 = createAudioEmitter(soundByte, tot);
+    AudioEmitter e2 = createAudioEmitter(soundByte2, tot);
 
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
 
@@ -812,7 +840,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
     }
 
-    HMODULE dllPtr = LoadLibrary("libsaguinus.dll");
+    if(!CopyFile("libsaguinus.dll", "libsaguinus_copy.dll", false)) return 1;
+    HMODULE dllPtr = LoadLibrary("libsaguinus_copy.dll");
     if(dllPtr == 0){
         MessageBox(0, "Could not load library libsaguinus.dll", "ERROR", 0);
         return 1;
@@ -876,15 +905,32 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             gameState.gamepad1.buttons[XINPUT_GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
         }
         
-        if(keyInputs[gameState.inputCodes.KEY_SPACE] && !spaceDown){
-            checkError(pSourceVoice->Stop(0), "Could not stop sound");
-            checkError(pSourceVoice->FlushSourceBuffers(), "Could not flush source buffer");
-            checkError(pSourceVoice->SubmitSourceBuffer(&audioBuffer), "Could not submit audio buffer");
-            checkError(pSourceVoice->Start(0), "Could not play sound");
-            spaceDown = true;
-        }else if(!keyInputs[gameState.inputCodes.KEY_SPACE]){
-            spaceDown = false;
+        if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_SPACE)){
+            playAudioEmitter(e1);
         }
+        if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_G)){
+            playAudioEmitter(e2);
+        }
+
+        if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_P)){
+            if(!FreeLibrary(dllPtr)) return 1;
+            if(!CopyFile("libsaguinus.dll", "libsaguinus_copy.dll", false)) return 1;
+            dllPtr = LoadLibrary("libsaguinus_copy.dll");
+            if(dllPtr == 0){
+                MessageBox(0, "Could not load library libsaguinus.dll", "ERROR", 0);
+                return 1;
+            }
+        
+            updateGS = 0;
+            updateGS = (ugsptr)GetProcAddress(dllPtr, "updateGameState");
+            if(updateGS == 0){
+                MessageBox(0, "Could not get address to updateGameState", "ERROR", 0);
+                return 1;
+            }
+        }
+
+        updateAudioEmitterDynamics(e1, Vector3(0), -gameState.camera.position, gameState.camera.right);
+        updateAudioEmitterDynamics(e2, gameState.light.position, -gameState.camera.position, gameState.camera.right);
 
         updateCameraView(&gameState.camera);
         

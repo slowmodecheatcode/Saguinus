@@ -87,6 +87,12 @@ struct Texture2D {
     void* texture;
 };
 
+struct AudioEmitter {
+    void* emitter;
+    void* buffer;
+    u32 bufferSize;
+};
+
 struct Font {
     u32 bitmapWidth;
     u32 bitmapHeight;
@@ -192,6 +198,8 @@ struct GameState {
 
     Vector2 windowDimenstion;
     Vector2 gameResolution;
+
+    bool keyTracking[128];
 
     bool* keyInputs;
     bool* mouseInputs;

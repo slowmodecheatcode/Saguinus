@@ -76,6 +76,10 @@ static u32 xorshift(u32 x){
     return x;
 }
 
+static f32 maximumOf(f32 v1, f32 v2){
+    return v1 > v2 ? v1 : v2;
+}
+
 static Vector3 operator*(Vector3& v1, f32 amt){
     return scale(v1, amt);
 }
@@ -90,6 +94,10 @@ static Vector3 sub(Vector3& v1, Vector3& v2){
 
 static Vector3 scale(Vector3& v1, f32 amt){
     return Vector3(v1.x * amt, v1.y * amt, v1.z * amt);
+}
+
+static f32 dot(Vector3 v1, Vector3 v2){
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
 
 static Vector3 cross(Vector3 v1, Vector3 v2){
