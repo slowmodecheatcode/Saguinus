@@ -198,23 +198,51 @@ static void initialzeGameState(GameState* state){
     state->light.diffuse = Vector3(1, 1, 1);
 
     state->storage.tempMemoryBuffer = (u8*)state->osFunctions.allocateMemory(MEGABYTE(32));
+    state->storage.longTermBuffer = (u8*)state->osFunctions.allocateMemory(GIGABYTE(1));
 
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);
 
     state->mesh = state->osFunctions.createTexturedMesh("character.texmesh");
+
+    const u32 tot = 44100 * 2;
+    
+
+
+    state->storage.longTermBufferPointer = state->storage.longTermBuffer;
+    state->soundBuffer1 = (s8*)state->storage.longTermBufferPointer;
+    state->storage.longTermBufferPointer += tot;
+    state->buffer1Size = tot;
+    for(u32 i = 0; i < tot; i += 2){
+        state->soundBuffer1[i] = ((i % 256) - 128);
+        state->soundBuffer1[i + 1] = state->soundBuffer1[i];
+    }
+    state->soundBuffer2 = (s8*)state->storage.longTermBufferPointer;
+    state->storage.longTermBufferPointer += tot;
+    state->buffer2Size = tot;
+    for(u32 i = 0; i < tot; i += 2){
+        state->soundBuffer2[i] = ((i % 128) - 64);
+        state->soundBuffer2[i + 1] = state->soundBuffer2[i];
+    }
+
+    state->emitters[0] = state->osFunctions.createAudioEmitter();
+    state->emitters[1] = state->osFunctions.createAudioEmitter();
 }
 
 extern "C" void updateGameState(GameState* state){
-    state->clearColor = Vector4(1, 0, 0, 1);
     InputCodes* c = &state->inputCodes;
     updateCameraWithMouse(state);
     updateCameraWithKeyboard(state);
     updateCameraWithGamepad(state);
     
-    if(state->keyInputs[c->KEY_SPACE]){
-        debugPrint(state, "SPACE IS PRESSED");
+    if(keyPressedOnce(state, c->KEY_SPACE)){
+        state->osFunctions.playAudioEmitter(state->emitters[0], state->soundBuffer1, state->buffer1Size);
     }
+    if(keyPressedOnce(state, c->KEY_G)){
+        state->osFunctions.playAudioEmitter(state->emitters[1], state->soundBuffer2, state->buffer2Size);
+    }
+    state->osFunctions.updateAudioEmitterDynamics(state->emitters[0], Vector3(0), -state->camera.position, state->camera.right);
+    state->osFunctions.updateAudioEmitterDynamics(state->emitters[1], state->light.position, -state->camera.position, -state->camera.right);
     
     debugCube(state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), state);
 

@@ -1,6 +1,4 @@
-implement 3d audio
 canvas renderer
-dynamic code reloading
 
 function timing
 use mapping to update constant buffers

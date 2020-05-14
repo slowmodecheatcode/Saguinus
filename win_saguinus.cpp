@@ -572,31 +572,28 @@ static void updateAudioEmitterDynamics(AudioEmitter ae, Vector3 epos, Vector3 lp
     checkError(((IXAudio2SourceVoice*)ae.emitter)->SetChannelVolumes(2, nc.v), "Could not set channel volumes");
 }
 
-static void playAudioEmitter(AudioEmitter ae){
+static void playAudioEmitter(AudioEmitter ae, s8* buffer, u32 bufferSize){
     XAUDIO2_BUFFER audioBuffer = {}; 
     audioBuffer.Flags = XAUDIO2_END_OF_STREAM;
-    audioBuffer.AudioBytes = ae.bufferSize;
-    audioBuffer.pAudioData = (const BYTE*)ae.buffer;
-    audioBuffer.PlayLength = ae.bufferSize / 2;
+    audioBuffer.AudioBytes = bufferSize;
+    audioBuffer.pAudioData = (const BYTE*)buffer;
+    audioBuffer.PlayLength = bufferSize / 2;
     checkError(((IXAudio2SourceVoice*)ae.emitter)->Stop(0), "Could not stop sound");
     checkError(((IXAudio2SourceVoice*)ae.emitter)->FlushSourceBuffers(), "Could not flush source buffer");
     checkError(((IXAudio2SourceVoice*)ae.emitter)->SubmitSourceBuffer(&audioBuffer), "Could not submit audio buffer");
     checkError(((IXAudio2SourceVoice*)ae.emitter)->Start(0), "Could not play sound");
 }
 
-static AudioEmitter createAudioEmitter(s8* data, u32 dataSize){
+static AudioEmitter createAudioEmitter(){
     AudioEmitter ae;
 
     WAVEFORMATEX wft = {};         
     wft.wFormatTag = WAVE_FORMAT_PCM;
     wft.nChannels = 2;
-    wft.nSamplesPerSec = dataSize / 2;
-    wft.nAvgBytesPerSec = dataSize;
+    wft.nSamplesPerSec = 44100; //fix this
+    wft.nAvgBytesPerSec = 44100 * 2; //fix this
     wft.nBlockAlign = 2;
     wft.wBitsPerSample = 8;
-
-    ae.buffer = data;
-    ae.bufferSize = dataSize;
 
     IXAudio2SourceVoice* pSourceVoice;
     checkError(XAudio2Pointer->CreateSourceVoice(&((IXAudio2SourceVoice*)ae.emitter), (WAVEFORMATEX*)&wft), "Could not create source voice");
@@ -679,21 +676,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     CoInitialize(0);
     checkError(XAudio2Pointer->CreateMasteringVoice(&XAudio2MasterVoice), "Could not create mastering voice");
     checkError(XAudio2MasterVoice->SetVolume(0.002), "Could not set master volume");
-
-    const u32 tot = 44100 * 2;
-    s8 soundByte[tot];
-    for(u32 i = 0; i < tot; i += 2){
-        soundByte[i] = ((i % 256) - 128);
-        soundByte[i + 1] = soundByte[i];
-    }
-    s8 soundByte2[tot];
-    for(u32 i = 0; i < tot; i += 2){
-        soundByte2[i] = ((i % 128) - 64);
-        soundByte2[i + 1] = soundByte2[i];
-    }
-
-    AudioEmitter e1 = createAudioEmitter(soundByte, tot);
-    AudioEmitter e2 = createAudioEmitter(soundByte2, tot);
 
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
 
@@ -859,6 +841,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState.osFunctions.createTexture2D = &createTexture2D;
     gameState.osFunctions.createTexturedMesh = &createTexturedMesh;
     gameState.osFunctions.allocateMemory = &allocateMemory;
+    gameState.osFunctions.createAudioEmitter = &createAudioEmitter;
+    gameState.osFunctions.updateAudioEmitterDynamics = &updateAudioEmitterDynamics;
+    gameState.osFunctions.playAudioEmitter = &playAudioEmitter;
     gameState.keyInputs = keyInputs;
     gameState.mouseInputs = mouseInputs;
     initializeKeyCodes(&gameState);
@@ -904,13 +889,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             gameState.gamepad1.buttons[XINPUT_GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
             gameState.gamepad1.buttons[XINPUT_GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
         }
-        
-        if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_SPACE)){
-            playAudioEmitter(e1);
-        }
-        if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_G)){
-            playAudioEmitter(e2);
-        }
 
         if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_P)){
             if(!FreeLibrary(dllPtr)) return 1;
@@ -928,10 +906,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
                 return 1;
             }
         }
-
-        updateAudioEmitterDynamics(e1, Vector3(0), -gameState.camera.position, gameState.camera.right);
-        updateAudioEmitterDynamics(e2, gameState.light.position, -gameState.camera.position, gameState.camera.right);
-
+        
         updateCameraView(&gameState.camera);
         
         updateGS(&gameState);

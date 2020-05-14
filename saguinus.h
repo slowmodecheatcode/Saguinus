@@ -89,8 +89,6 @@ struct Texture2D {
 
 struct AudioEmitter {
     void* emitter;
-    void* buffer;
-    u32 bufferSize;
 };
 
 struct Font {
@@ -159,12 +157,17 @@ struct DebugBuffer {
 struct OSFunctions {
     void* (*allocateMemory)(u32 amount);
     void (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
+    void (*updateAudioEmitterDynamics)(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt);
+    void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
     Texture2D (*createTexture2D)(const s8* fileName, u32 bytesPerPixel);
     TexturedMesh (*createTexturedMesh)(const s8* fileName);
+    AudioEmitter (*createAudioEmitter)();
 };
 
 struct MemoryStorage {
     u8* tempMemoryBuffer;
+    u8* longTermBuffer;
+    u8* longTermBufferPointer;
 };
 
 struct Gamepad {
@@ -186,6 +189,8 @@ struct GameState {
     OSFunctions osFunctions;
     MemoryStorage storage;
 
+    AudioEmitter emitters[2];
+
     Camera camera;
     PointLight light;
 
@@ -200,6 +205,11 @@ struct GameState {
     Vector2 gameResolution;
 
     bool keyTracking[128];
+
+    s8* soundBuffer1;
+    s8* soundBuffer2;
+    u32 buffer1Size;
+    u32 buffer2Size;
 
     bool* keyInputs;
     bool* mouseInputs;
