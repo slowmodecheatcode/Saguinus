@@ -180,6 +180,24 @@ struct Gamepad {
     f32 rightTrigger;
 };
 
+struct Obstacle {
+    Vector3 position;
+    Vector3 scale;
+    Quaternion orientation;
+    TexturedMesh mesh;
+    f32 xVelocity;
+    f32 xStartPosition;
+};
+
+struct Player {
+    Vector3 position;
+    Vector3 scale;
+    Quaternion orientation;
+    TexturedMesh mesh;
+    f32 yVelocity;
+    bool isJumping;
+};
+
 struct GameState {
     TextBuffer textBuffer;
     DebugBuffer debugBuffer;
@@ -194,9 +212,10 @@ struct GameState {
     Camera camera;
     PointLight light;
 
-    Gamepad gamepad1;
+    Obstacle obstacle;
+    Player player;
 
-    TexturedMesh mesh;
+    Gamepad gamepad1;
 
     Vector4 clearColor;
     Vector2 mousePosition;
@@ -214,7 +233,11 @@ struct GameState {
     bool* keyInputs;
     bool* mouseInputs;
     f32 deltaTime;
+    f32 gravity;
     s32 mouseScrollDelta;
 
     bool updateCamera;
-}gameState;
+    bool debugMode;
+    bool isInitialized;
+    bool gameOver;
+} *gameState;

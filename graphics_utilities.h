@@ -113,7 +113,7 @@ struct PointLight {
 static void updateCameraView(Camera* camera){
     camera->view = Matrix4(1);
     Matrix4 camRotation = quaternionToMatrix4(camera->orientation);
-    translateMatrix(&camera->view, camera->position);
+    translateMatrix(&camera->view, -camera->position);
     camera->view = camRotation * camera->view;
     camera->right = Vector3(camera->view.m2[0][0], camera->view.m2[1][0], camera->view.m2[2][0]);
     camera->up = Vector3(camera->view.m2[0][1], camera->view.m2[1][1], camera->view.m2[2][1]);

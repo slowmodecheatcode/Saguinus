@@ -4,6 +4,10 @@
 
 #include <math.h> //remove this some day
 
+#define TAU 6.28318530718f
+#define PI 3.14159265359f
+#define HALF_PI 1.570796326795
+
 union Vector2 {
     f32 v[2];
     struct {
@@ -68,6 +72,10 @@ union Matrix4 {
 static Vector3 add(Vector3& v1, Vector3& v2);
 static Matrix4 multiply(Matrix4& m1, Matrix4& m2);
 static Vector3 scale(Vector3& v1, f32 amt);
+
+static f32 absoluteValue(f32 v){
+    return v < 0 ? -v : v;
+}
 
 static u32 xorshift(u32 x){
     x ^= x << 13;

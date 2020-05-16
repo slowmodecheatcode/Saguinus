@@ -1,6 +1,6 @@
 #include "saguinus.h"
 
-static void addTextToBuffer(const s8* str, f32 x, f32 y, f32 scale, Vector4 color, GameState* state){
+static void addTextToBuffer(GameState* state, const s8* str, f32 x, f32 y, f32 scale, Vector4 color){
     TextBuffer* buffer = &state->textBuffer;
 
     const s8* c = str;
@@ -20,13 +20,13 @@ static void debugPrint(GameState* state, s8* text, ...){
     s8 buf[MAX_STRING_LENGTH];
     createDebugString(buf, text, argptr);
 
-    addTextToBuffer(buf, buffer->debugPrinterX, buffer->debugPrinterY, 2, Vector4(0, 0, 0, 1), state);
+    addTextToBuffer(state, buf, buffer->debugPrinterX, buffer->debugPrinterY, 2, Vector4(0, 0, 0, 1));
     buffer->debugPrinterY -= 25;
 
     va_end(argptr);
 }
 
-static void debugCube(Vector3 position, Vector3 scale, Vector4 color, GameState* state){
+static void debugCube(GameState* state, Vector3 position, Vector3 scale, Vector4 color){
     DebugBuffer* buffer = &state->debugBuffer;
     u32 idx = buffer->totalCubes++;
     buffer->cubePositions[idx] = position;
@@ -34,7 +34,7 @@ static void debugCube(Vector3 position, Vector3 scale, Vector4 color, GameState*
     buffer->cubeColors[idx] = color;
 }
 
-static void debugLine(Vector3 start, Vector3 end, Vector4 color, f32 lineWidth, GameState* state){
+static void debugLine(GameState* state, Vector3 start, Vector3 end, Vector4 color, f32 lineWidth){
     DebugBuffer* buffer = &state->debugBuffer;
     u32 idx = buffer->totalLines++;
     buffer->lineStarts[idx] = start;
@@ -43,7 +43,7 @@ static void debugLine(Vector3 start, Vector3 end, Vector4 color, f32 lineWidth, 
     buffer->lineColors[idx] = color;
 }
 
-static void debugBox(Vector3 position, Vector3 scale, Vector4 color, f32 lineWidth, GameState* state){
+static void debugBox(GameState* state, Vector3 position, Vector3 scale, Vector4 color, f32 lineWidth){
     Vector3 halfScale = scale * 0.5;
     Vector3 p1(position.x - halfScale.x, position.y - halfScale.y, position.z - halfScale.z);
     Vector3 p2(position.x - halfScale.x, position.y + halfScale.y, position.z - halfScale.z);
@@ -55,23 +55,23 @@ static void debugBox(Vector3 position, Vector3 scale, Vector4 color, f32 lineWid
     Vector3 p7(position.x + halfScale.x, position.y + halfScale.y, position.z + halfScale.z);
     Vector3 p8(position.x + halfScale.x, position.y - halfScale.y, position.z + halfScale.z);
 
-    debugLine(p1, p2, color, lineWidth, state);
-    debugLine(p2, p3, color, lineWidth, state);
-    debugLine(p3, p4, color, lineWidth, state);
-    debugLine(p4, p1, color, lineWidth, state);
+    debugLine(state, p1, p2, color, lineWidth);
+    debugLine(state, p2, p3, color, lineWidth);
+    debugLine(state, p3, p4, color, lineWidth);
+    debugLine(state, p4, p1, color, lineWidth);
 
-    debugLine(p5, p6, color, lineWidth, state);
-    debugLine(p6, p7, color, lineWidth, state);
-    debugLine(p7, p8, color, lineWidth, state);
-    debugLine(p8, p5, color, lineWidth, state);
+    debugLine(state, p5, p6, color, lineWidth);
+    debugLine(state, p6, p7, color, lineWidth);
+    debugLine(state, p7, p8, color, lineWidth);
+    debugLine(state, p8, p5, color, lineWidth);
 
-    debugLine(p1, p5, color, lineWidth, state);
-    debugLine(p2, p6, color, lineWidth, state);
-    debugLine(p3, p7, color, lineWidth, state);
-    debugLine(p4, p8, color, lineWidth, state);
+    debugLine(state, p1, p5, color, lineWidth);
+    debugLine(state, p2, p6, color, lineWidth);
+    debugLine(state, p3, p7, color, lineWidth);
+    debugLine(state, p4, p8, color, lineWidth);
 }
 
-static void addTexturedMeshToBuffer(TexturedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation, GameState* state){
+static void addTexturedMeshToBuffer(GameState* state, TexturedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation){
     TexturedMeshBuffer* tmb = &state->txtdMeshBuffer;
     u32 idx = tmb->totalMeshes++;
     tmb->positions[idx] = position;
@@ -101,22 +101,22 @@ static void updateCameraWithKeyboard(GameState* state){
     Camera* camera = &state->camera;
     InputCodes* c = &state->inputCodes;
     if(keyInputs[c->KEY_W]){
-        camera->position -= camera->forward * deltaTime * camera->moveSpeed;
-    }
-    if(keyInputs[c->KEY_S]){
         camera->position += camera->forward * deltaTime * camera->moveSpeed;
     }
+    if(keyInputs[c->KEY_S]){
+        camera->position -= camera->forward * deltaTime * camera->moveSpeed;
+    }
     if(keyInputs[c->KEY_A]){
-       camera->position += camera->right * deltaTime * camera->moveSpeed;
+       camera->position -= camera->right * deltaTime * camera->moveSpeed;
     }
     if(keyInputs[c->KEY_D]){
-        camera->position -= camera->right * deltaTime * camera->moveSpeed;
+        camera->position += camera->right * deltaTime * camera->moveSpeed;
     }
     if(keyInputs[c->KEY_R]){
-       camera->position -= camera->up * deltaTime * camera->moveSpeed;
+       camera->position += camera->up * deltaTime * camera->moveSpeed;
     }
     if(keyInputs[c->KEY_F]){
-        camera->position += camera->up * deltaTime * camera->moveSpeed;
+        camera->position -= camera->up * deltaTime * camera->moveSpeed;
     }
 
     if(keyInputs[c->KEY_UP]){
@@ -157,16 +157,16 @@ static void updateCameraWithGamepad(GameState* state){
         rotate(&camera->orientation, camera->forward, -deltaTime * camera->rotateSpeed * gamepad1->rightTrigger);
     }
     if(gamepad1->leftStickX > 0.05 || gamepad1->leftStickX < -0.05){
-        camera->position -= camera->right * deltaTime * camera->moveSpeed * gamepad1->leftStickX;
+        camera->position += camera->right * deltaTime * camera->moveSpeed * gamepad1->leftStickX;
     }
     if(gamepad1->leftStickY > 0.05 || gamepad1->leftStickY < -0.05){
-        camera->position -= camera->forward * deltaTime * camera->moveSpeed * gamepad1->leftStickY;
+        camera->position += camera->forward * deltaTime * camera->moveSpeed * gamepad1->leftStickY;
     }
     if(gamepad1->buttons[c->GAMEPAD_LB]){
-        camera->position += camera->up * deltaTime * camera->moveSpeed;
+        camera->position -= camera->up * deltaTime * camera->moveSpeed;
     }
     if(gamepad1->buttons[c->GAMEPAD_RB]){
-        camera->position -= camera->up * deltaTime * camera->moveSpeed;
+        camera->position += camera->up * deltaTime * camera->moveSpeed;
     }
 }
 
@@ -181,20 +181,64 @@ static bool keyPressedOnce(GameState* state, u32 key){
     return false;
 }
 
-static void initialzeGameState(GameState* state){
+static void updateObstacle(GameState* state){
+    Obstacle* o = &state->obstacle;
+    f32 dt = state->deltaTime;
+    o->position.x += dt * o->xVelocity;
+    if(o->position.x < -10){
+        o->position.x = o->xStartPosition;
+    }
+}
+
+static void updatePlayer(GameState* state){
+    InputCodes* c = &state->inputCodes;
+    Player* p = &state->player;
+    f32 gravity = state->gravity;
+    f32 dt = state->deltaTime;
+
+    if(!p->isJumping && keyPressedOnce(state, c->KEY_SPACE)){
+        p->yVelocity = 10;
+        p->isJumping = true;
+    }
+
+    if(p->isJumping){
+        p->yVelocity += gravity * dt;
+        p->position.y += p->yVelocity * dt;
+        if(p->position.y < 0){
+            p->position = 0;
+            p->isJumping = false;
+        }
+    }
+   
+}
+
+static void checkForPlayerCollision(GameState* state){
+    Player* p = &state->player;
+    Obstacle* o = &state->obstacle;
+    f32 len = length(o->position - p->position);
+    if(len < 1){
+        state->clearColor = Vector4(0, 0, 0, 1);
+        state->gameOver = true;
+    }
+}
+
+static void initializeGameState(GameState* state){
     TextBuffer* tb = &state->textBuffer;
     tb->debugPrinterStartY = state->windowDimenstion.y - 50;
     tb->debugPrinterX = 25;
     tb->debugPrinterY = tb->debugPrinterStartY;
 
-    state->camera.position.z -= 5;
+    state->camera = Camera();
+    state->camera.position = Vector3(13.75, 6, 25);
+    state->camera.orientation = Quaternion();
     state->camera.moveSpeed = 3;
     state->camera.rotateSpeed = 1;
     state->camera.mouseSensitivity = 0.1;
 
     state->camera.projection = createPerspectiveProjection(70.0, (f32)state->windowDimenstion.x / (f32)state->windowDimenstion.y, 0.001, 1000.0);
 
-    state->light.position = Vector3(5, 5, -3);
+    state->light = PointLight();
+    state->light.position = Vector3(5, 15, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
     state->storage.tempMemoryBuffer = (u8*)state->osFunctions.allocateMemory(MEGABYTE(32));
@@ -203,48 +247,67 @@ static void initialzeGameState(GameState* state){
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);
 
-    state->mesh = state->osFunctions.createTexturedMesh("character.texmesh");
+    state->player.orientation = Quaternion();
+    rotate(&state->player.orientation, Vector3(0, 1, 0), HALF_PI);
+    state->player.scale = Vector3(1);
+    state->player.mesh = state->osFunctions.createTexturedMesh("character.texmesh");
+    state->gravity = -20;
 
-    const u32 tot = 44100 * 2;
-    
+    state->obstacle.orientation = Quaternion();
+    rotate(&state->obstacle.orientation, Vector3(0, 1, 0), -HALF_PI);
+    state->obstacle.xStartPosition = 35;
+    state->obstacle.position = Vector3(state->obstacle.xStartPosition, 0.5, 0);
+    state->obstacle.scale = Vector3(1);
+    state->obstacle.mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
+    state->obstacle.mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
+    state->obstacle.xVelocity = -15;
 
-
-    state->storage.longTermBufferPointer = state->storage.longTermBuffer;
-    state->soundBuffer1 = (s8*)state->storage.longTermBufferPointer;
-    state->storage.longTermBufferPointer += tot;
-    state->buffer1Size = tot;
-    for(u32 i = 0; i < tot; i += 2){
-        state->soundBuffer1[i] = ((i % 256) - 128);
-        state->soundBuffer1[i + 1] = state->soundBuffer1[i];
-    }
-    state->soundBuffer2 = (s8*)state->storage.longTermBufferPointer;
-    state->storage.longTermBufferPointer += tot;
-    state->buffer2Size = tot;
-    for(u32 i = 0; i < tot; i += 2){
-        state->soundBuffer2[i] = ((i % 128) - 64);
-        state->soundBuffer2[i + 1] = state->soundBuffer2[i];
-    }
-
-    state->emitters[0] = state->osFunctions.createAudioEmitter();
-    state->emitters[1] = state->osFunctions.createAudioEmitter();
+    state->gameOver = false;
+    state->isInitialized = true;
 }
 
 extern "C" void updateGameState(GameState* state){
-    InputCodes* c = &state->inputCodes;
-    updateCameraWithMouse(state);
-    updateCameraWithKeyboard(state);
-    updateCameraWithGamepad(state);
-    
-    if(keyPressedOnce(state, c->KEY_SPACE)){
-        state->osFunctions.playAudioEmitter(state->emitters[0], state->soundBuffer1, state->buffer1Size);
+    if(!state->isInitialized){
+        initializeGameState(state);
     }
-    if(keyPressedOnce(state, c->KEY_G)){
-        state->osFunctions.playAudioEmitter(state->emitters[1], state->soundBuffer2, state->buffer2Size);
-    }
-    state->osFunctions.updateAudioEmitterDynamics(state->emitters[0], Vector3(0), -state->camera.position, state->camera.right);
-    state->osFunctions.updateAudioEmitterDynamics(state->emitters[1], state->light.position, -state->camera.position, -state->camera.right);
-    
-    debugCube(state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1), state);
 
-    addTexturedMeshToBuffer(&state->mesh, Vector3(0), Vector3(1), Quaternion(), state);
+    Camera* cam = &state->camera;
+    InputCodes* c = &state->inputCodes;
+    Player* p = &state->player;
+    Obstacle* o = &state->obstacle;
+
+    if(keyPressedOnce(state, c->KEY_B)){
+        state->debugMode = !state->debugMode;
+        if(!state->debugMode){
+            cam->position = Vector3(13.75, 6, 25);
+            cam->orientation = Quaternion();
+        }
+    }
+    if(state->debugMode){
+        updateCameraWithMouse(state);
+        updateCameraWithKeyboard(state);
+        updateCameraWithGamepad(state);
+    }else{
+        if(!state->gameOver){
+            updatePlayer(state);
+            updateObstacle(state);
+            checkForPlayerCollision(state);
+        }else{
+            addTextToBuffer(state, "GAME OVER", 250, 250, 8, Vector4(1, 0, 0, 1));
+            addTextToBuffer(state, "Press R to restart", 250, 200, 4, Vector4(1, 0, 0, 1));
+            if(keyPressedOnce(state, c->KEY_R)){
+                initializeGameState(state);
+            }
+        }
+    }
+
+    updateCameraView(&state->camera);
+    
+    debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
+    debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
+
+    addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
+    addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
+
+    debugPrint(state, "debug mode:%b", state->debugMode);
 }

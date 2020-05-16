@@ -374,7 +374,7 @@ static void renderDebugBuffer(DebugBuffer* buffer, Camera* camera){
         Vector3 endPos = buffer->lineEnds[i];
         f32 lineWidth = buffer->lineWidths[i];
 
-        Vector3 val = normalOf(cross(endPos - startPos, -camera->position - startPos));
+        Vector3 val = normalOf(cross(endPos - startPos, camera->position - startPos));
         Vector3 ang = val * lineWidth * 0.5;
 
         Vector3 p1 = startPos - ang;
@@ -617,18 +617,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
         case WM_MOUSEMOVE:{
             GetCursorPos(&mousePosition);
             ScreenToClient(hwnd, &mousePosition);
-            if(mousePosition.x != gameState.mousePosition.x || mousePosition.y != gameState.mousePosition.y){
-                gameState.mousePosition = Vector2(mousePosition.x, mousePosition.y);
-                gameState.updateCamera = true;
-                SetCursorPos(screenCenter.x, screenCenter.y);
+            if(mousePosition.x != gameState->mousePosition.x || mousePosition.y != gameState->mousePosition.y){
+                gameState->mousePosition = Vector2(mousePosition.x, mousePosition.y);
+                gameState->updateCamera = true;
+                if(gameState->debugMode){
+                    SetCursorPos(screenCenter.x, screenCenter.y);
+                }
             }
             
             break;
         }
         case WM_GETMINMAXINFO :{
             MINMAXINFO* info = (MINMAXINFO*)lParam;
-            info->ptMinTrackSize.x = gameState.gameResolution.x;
-            info->ptMinTrackSize.y = gameState.gameResolution.y;
+            info->ptMinTrackSize.x = gameState->gameResolution.x;
+            info->ptMinTrackSize.y = gameState->gameResolution.y;
             break;
         }
         case WM_KEYDOWN:{
@@ -663,7 +665,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             mouseInputs[MOUSE_BUTTON_RIGHT] = false;
             break;  
         }case WM_MOUSEWHEEL:{
-            gameState.mouseScrollDelta = (s16)HIWORD(wParam) / WHEEL_DELTA;
+            gameState->mouseScrollDelta = (s16)HIWORD(wParam) / WHEEL_DELTA;
             break;
         }         
     }
@@ -678,6 +680,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     checkError(XAudio2MasterVoice->SetVolume(0.002), "Could not set master volume");
 
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
+    gameState = (GameState*)VirtualAlloc(0, sizeof(GameState), MEM_COMMIT, PAGE_READWRITE);
 
     WNDCLASS wc = { };
     wc.lpfnWndProc   = WindowProc;
@@ -836,18 +839,17 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         return 1;
     }
 
-    gameState.windowDimenstion = Vector2(windowWidth, windowHeight);
-    gameState.osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
-    gameState.osFunctions.createTexture2D = &createTexture2D;
-    gameState.osFunctions.createTexturedMesh = &createTexturedMesh;
-    gameState.osFunctions.allocateMemory = &allocateMemory;
-    gameState.osFunctions.createAudioEmitter = &createAudioEmitter;
-    gameState.osFunctions.updateAudioEmitterDynamics = &updateAudioEmitterDynamics;
-    gameState.osFunctions.playAudioEmitter = &playAudioEmitter;
-    gameState.keyInputs = keyInputs;
-    gameState.mouseInputs = mouseInputs;
-    initializeKeyCodes(&gameState);
-    initialzeGameState(&gameState);
+    gameState->windowDimenstion = Vector2(windowWidth, windowHeight);
+    gameState->osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
+    gameState->osFunctions.createTexture2D = &createTexture2D;
+    gameState->osFunctions.createTexturedMesh = &createTexturedMesh;
+    gameState->osFunctions.allocateMemory = &allocateMemory;
+    gameState->osFunctions.createAudioEmitter = &createAudioEmitter;
+    gameState->osFunctions.updateAudioEmitterDynamics = &updateAudioEmitterDynamics;
+    gameState->osFunctions.playAudioEmitter = &playAudioEmitter;
+    gameState->keyInputs = keyInputs;
+    gameState->mouseInputs = mouseInputs;
+    initializeKeyCodes(gameState);
 
     bool spaceDown = false;
 
@@ -867,30 +869,30 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         if(XInputGetState(gamepad1.index, &gamepad1.state) == ERROR_SUCCESS 
         && gamepad1.state.dwPacketNumber != gamepad1.lastPacket){
-            gameState.gamepad1.leftStickX = (f32)gamepad1.state.Gamepad.sThumbLX / GAMEPAD_STICK_MAX;
-            gameState.gamepad1.leftStickY = (f32)gamepad1.state.Gamepad.sThumbLY / GAMEPAD_STICK_MAX;
-            gameState.gamepad1.rightStickX = (f32)gamepad1.state.Gamepad.sThumbRX / GAMEPAD_STICK_MAX;
-            gameState.gamepad1.rightStickY = (f32)gamepad1.state.Gamepad.sThumbRY / GAMEPAD_STICK_MAX;
-            gameState.gamepad1.leftTrigger = (f32)gamepad1.state.Gamepad.bLeftTrigger / GAMEPAD_TRIGGER_MAX;
-            gameState.gamepad1.rightTrigger = (f32)gamepad1.state.Gamepad.bRightTrigger / GAMEPAD_TRIGGER_MAX;
+            gameState->gamepad1.leftStickX = (f32)gamepad1.state.Gamepad.sThumbLX / GAMEPAD_STICK_MAX;
+            gameState->gamepad1.leftStickY = (f32)gamepad1.state.Gamepad.sThumbLY / GAMEPAD_STICK_MAX;
+            gameState->gamepad1.rightStickX = (f32)gamepad1.state.Gamepad.sThumbRX / GAMEPAD_STICK_MAX;
+            gameState->gamepad1.rightStickY = (f32)gamepad1.state.Gamepad.sThumbRY / GAMEPAD_STICK_MAX;
+            gameState->gamepad1.leftTrigger = (f32)gamepad1.state.Gamepad.bLeftTrigger / GAMEPAD_TRIGGER_MAX;
+            gameState->gamepad1.rightTrigger = (f32)gamepad1.state.Gamepad.bRightTrigger / GAMEPAD_TRIGGER_MAX;
 
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_LEFT_SHOULDER] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_RIGHT_SHOULDER] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_LEFT_THUMB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_RIGHT_THUMB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_DOWN] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_DPAD_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
-            gameState.gamepad1.buttons[XINPUT_GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_A] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_A;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_B] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_B;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_X] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_Y] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_Y;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_LB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_RB] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_L3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_R3] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_D_UP] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_D_DONW] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_D_LEFT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_D_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
+            gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
         }
 
-        if(keyPressedOnce(&gameState, gameState.inputCodes.KEY_P)){
+        if(keyPressedOnce(gameState, gameState->inputCodes.KEY_P)){
             if(!FreeLibrary(dllPtr)) return 1;
             if(!CopyFile("libsaguinus.dll", "libsaguinus_copy.dll", false)) return 1;
             dllPtr = LoadLibrary("libsaguinus_copy.dll");
@@ -905,25 +907,24 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
                 MessageBox(0, "Could not get address to updateGameState", "ERROR", 0);
                 return 1;
             }
+            gameState->isInitialized = false;
         }
         
-        updateCameraView(&gameState.camera);
-        
-        updateGS(&gameState);
+        updateGS(gameState);
 
-        d3d11Context->ClearRenderTargetView(renderTargetView, gameState.clearColor.v);
+        d3d11Context->ClearRenderTargetView(renderTargetView, gameState->clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
-        renderTexturedMeshBuffer(&gameState.txtdMeshBuffer, &gameState.camera, &gameState.light);
-        renderDebugBuffer(&gameState.debugBuffer, &gameState.camera);
-        renderTextBuffer(&gameState.textBuffer);
+        renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
+        renderDebugBuffer(&gameState->debugBuffer, &gameState->camera);
+        renderTextBuffer(&gameState->textBuffer);
         
 
         swapChain->Present(1, 0);
 
         endTime = GetTickCount64();
-        gameState.deltaTime = (f32)(endTime - startTime) / 1000.0f;
+        gameState->deltaTime = (f32)(endTime - startTime) / 1000.0f;
         startTime = endTime;
     }
 

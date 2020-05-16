@@ -1,4 +1,6 @@
 canvas renderer
+camera lookat 
+make function to set global sound volume
 
 function timing
 use mapping to update constant buffers
