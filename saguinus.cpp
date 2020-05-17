@@ -192,12 +192,13 @@ static void updateObstacle(GameState* state){
 
 static void updatePlayer(GameState* state){
     InputCodes* c = &state->inputCodes;
+    bool* keyInputs = state->keyInputs;
     Player* p = &state->player;
     f32 gravity = state->gravity;
     f32 dt = state->deltaTime;
 
-    if(!p->isJumping && keyPressedOnce(state, c->KEY_SPACE)){
-        p->yVelocity = 10;
+    if(!p->isJumping && keyPressedOnce(state, c->KEY_W)){
+        p->yVelocity = 30;
         p->isJumping = true;
     }
 
@@ -207,6 +208,8 @@ static void updatePlayer(GameState* state){
         if(p->position.y < 0){
             p->position = 0;
             p->isJumping = false;
+        }else if(keyInputs[c->KEY_S]){
+            p->yVelocity -= 5;
         }
     }
    
@@ -218,7 +221,7 @@ static void checkForPlayerCollision(GameState* state){
     f32 len = length(o->position - p->position);
     if(len < 1){
         state->clearColor = Vector4(0, 0, 0, 1);
-        state->gameOver = true;
+        state->mode = GameMode::GAME_MODE_OVER;
     }
 }
 
@@ -251,7 +254,7 @@ static void initializeGameState(GameState* state){
     rotate(&state->player.orientation, Vector3(0, 1, 0), HALF_PI);
     state->player.scale = Vector3(1);
     state->player.mesh = state->osFunctions.createTexturedMesh("character.texmesh");
-    state->gravity = -20;
+    state->gravity = -100;
 
     state->obstacle.orientation = Quaternion();
     rotate(&state->obstacle.orientation, Vector3(0, 1, 0), -HALF_PI);
@@ -261,6 +264,11 @@ static void initializeGameState(GameState* state){
     state->obstacle.mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
     state->obstacle.mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
     state->obstacle.xVelocity = -15;
+
+    state->mode = GameMode::GAME_MODE_INTRO;
+
+    state->gameTime = 0;
+    state->score = 0;
 
     state->gameOver = false;
     state->isInitialized = true;
@@ -276,38 +284,72 @@ extern "C" void updateGameState(GameState* state){
     Player* p = &state->player;
     Obstacle* o = &state->obstacle;
 
-    if(keyPressedOnce(state, c->KEY_B)){
-        state->debugMode = !state->debugMode;
-        if(!state->debugMode){
-            cam->position = Vector3(13.75, 6, 25);
-            cam->orientation = Quaternion();
+    switch (state->mode) {
+        case GameMode::GAME_MODE_DEBUG : {
+            updateCameraWithMouse(state);
+            updateCameraWithKeyboard(state);
+            updateCameraWithGamepad(state);
+            break;
         }
-    }
-    if(state->debugMode){
-        updateCameraWithMouse(state);
-        updateCameraWithKeyboard(state);
-        updateCameraWithGamepad(state);
-    }else{
-        if(!state->gameOver){
+        case GameMode::GAME_MODE_PLAYING : {
             updatePlayer(state);
             updateObstacle(state);
             checkForPlayerCollision(state);
-        }else{
-            addTextToBuffer(state, "GAME OVER", 250, 250, 8, Vector4(1, 0, 0, 1));
-            addTextToBuffer(state, "Press R to restart", 250, 200, 4, Vector4(1, 0, 0, 1));
+            debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
+            debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
+            debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
+
+            addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
+            addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
+            s8 buf[32];
+            createDebugString(buf, "Score: %i", state->score);
+            addTextToBuffer(state, buf, 200, 550, 3, Vector4(0, 0, 0, 1));
+            // debugPrint(state, "score: %i", state->score);
+            state->gameTime += state->deltaTime;
+            state->score = (state->gameTime * 100);
+            break;
+        }
+        case GameMode::GAME_MODE_OVER : {
+            addTextToBuffer(state, "GAME OVER", 350, 300, 8, Vector4(1, 0, 0, 1));
+            addTextToBuffer(state, "Press R to restart", 350, 250, 4, Vector4(1, 0, 0, 1));
+            debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
+            debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
+            debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
+
+            addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
+            addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
+            s8 buf[32];
+            createDebugString(buf, "Score: %i", state->score);
+            addTextToBuffer(state, buf, 200, 550, 3, Vector4(1, 0, 0, 1));
             if(keyPressedOnce(state, c->KEY_R)){
-                initializeGameState(state);
+                state->obstacle.position = Vector3(state->obstacle.xStartPosition, 0.5, 0);
+                state->mode = GameMode::GAME_MODE_PLAYING;
+                state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
+                state->score = 0;
+                state->gameTime = 0;
             }
+            break;
+        }
+        case GameMode::GAME_MODE_INTRO : {
+            addTextToBuffer(state, "GAME TITLE", 300, 500, 10, Vector4(1, 1, 1, 1));
+            addTextToBuffer(state, "Press SPACE to Begin", 300, 450, 6, Vector4(1, 1, 1, 1));
+            if(keyPressedOnce(state, c->KEY_SPACE)){
+                state->mode = GameMode::GAME_MODE_PLAYING;
+            }
+            break;
+        }
+    }
+
+    if(keyPressedOnce(state, c->KEY_B)){
+        if(state->mode != GameMode::GAME_MODE_DEBUG){
+            state->mode = GameMode::GAME_MODE_DEBUG;
+        }else{
+            initializeGameState(state);
         }
     }
 
     updateCameraView(&state->camera);
-    
-    debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
-    debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
-
-    addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
-    addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
 
     debugPrint(state, "debug mode:%b", state->debugMode);
+    debugPrint(state, "delta time: %f4", state->deltaTime);
 }

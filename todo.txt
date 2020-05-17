@@ -1,6 +1,11 @@
 canvas renderer
+gui system
 camera lookat 
+make text positioning scale with window
 make function to set global sound volume
+writing to files
+
+skybox rendering
 
 function timing
 use mapping to update constant buffers

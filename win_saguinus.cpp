@@ -2,8 +2,8 @@
 
 #include "win_saguinus.h"
 
-static u32 windowWidth = 800;
-static u32 windowHeight = 450;
+static u32 windowWidth = 1200;
+static u32 windowHeight = 675;
 static s32 halfWindowWidth = windowWidth * 0.5;
 static s32 halfWindowHeight = windowHeight * 0.5;
 
@@ -620,7 +620,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             if(mousePosition.x != gameState->mousePosition.x || mousePosition.y != gameState->mousePosition.y){
                 gameState->mousePosition = Vector2(mousePosition.x, mousePosition.y);
                 gameState->updateCamera = true;
-                if(gameState->debugMode){
+                if(gameState->mode == GameMode::GAME_MODE_DEBUG){
                     SetCursorPos(screenCenter.x, screenCenter.y);
                 }
             }
@@ -688,9 +688,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     wc.lpszClassName = "Saguinus";
     wc.hCursor = LoadCursorA(0, IDC_ARROW);
 
+    s32 screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    s32 screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    s32 sx = (screenWidth >> 1) - halfWindowWidth;
+    s32 sy = (screenHeight >> 1) - halfWindowHeight;
+
     RegisterClass(&wc);
     HWND hwnd = CreateWindowEx(0, wc.lpszClassName, wc.lpszClassName, WS_OVERLAPPEDWINDOW,
-                               100, 100, windowWidth, windowHeight, 0, 0, GetModuleHandle(0), 0);
+                               sx, sy, windowWidth, windowHeight, 0, 0, GetModuleHandle(0), 0);
 
     if (hwnd == 0){
         MessageBox(0, "Error creating window", "ERROR", 0);
@@ -854,8 +859,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     bool spaceDown = false;
 
     f32 deltaTime = 0;
-    u64 endTime = 0;
-    u64 startTime = GetTickCount64();
+    LARGE_INTEGER endTime;
+    LARGE_INTEGER startTime;
+    LARGE_INTEGER performanceFrequency;
+    QueryPerformanceFrequency(&performanceFrequency);
+    QueryPerformanceCounter(&startTime);
     while(isRunning){
         MSG msg = { };
         while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)){
@@ -923,8 +931,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         swapChain->Present(1, 0);
 
-        endTime = GetTickCount64();
-        gameState->deltaTime = (f32)(endTime - startTime) / 1000.0f;
+        QueryPerformanceCounter(&endTime);
+        gameState->deltaTime = (f32)(endTime.QuadPart - startTime.QuadPart) / (f32)performanceFrequency.QuadPart;
         startTime = endTime;
     }
 

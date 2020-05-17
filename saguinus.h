@@ -9,6 +9,15 @@
 #define MAX_DEBUG_LINES 256
 #define MAX_TEXTURED_MESHES 256
 
+enum GameMode {
+    GAME_MODE_INTRO,
+    GAME_MODE_PLAYING,
+    GAME_MODE_OVER,
+    GAME_MODE_DEBUG,
+    
+    GAME_MODE_TOTAL,
+};
+
 struct InputCodes {
     u8 KEY_0;
     u8 KEY_1;
@@ -223,6 +232,8 @@ struct GameState {
     Vector2 windowDimenstion;
     Vector2 gameResolution;
 
+    GameMode mode;
+
     bool keyTracking[128];
 
     s8* soundBuffer1;
@@ -234,6 +245,8 @@ struct GameState {
     bool* mouseInputs;
     f32 deltaTime;
     f32 gravity;
+    f32 gameTime;
+    u32 score;
     s32 mouseScrollDelta;
 
     bool updateCamera;

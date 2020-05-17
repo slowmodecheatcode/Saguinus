@@ -240,3 +240,10 @@ static void createDebugString(s8* buffer, const s8* txt, va_list argptr){
 
     buffer[ctr] = '\0';
 }
+
+static void createDebugString(s8* buffer, const s8* txt, ...){
+    va_list argptr;
+    va_start(argptr, txt);
+    createDebugString(buffer, txt, argptr);
+    va_end(argptr);
+}
