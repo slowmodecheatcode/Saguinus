@@ -1,5 +1,11 @@
 #include "saguinus.h"
 
+static u32 randomU32(u32 sd = 1){
+    static u32 seed = sd;
+    seed = xorshift(seed);
+    return seed;
+}
+
 static void addTextToBuffer(GameState* state, const s8* str, f32 x, f32 y, f32 scale, Vector4 color){
     TextBuffer* buffer = &state->textBuffer;
 
@@ -181,13 +187,23 @@ static bool keyPressedOnce(GameState* state, u32 key){
     return false;
 }
 
-static void updateObstacle(GameState* state){
-    Obstacle* o = &state->obstacle;
+static void updateObstacles(GameState* state){
+    Player* p = &state->player;
+    u32 tot = state->totalObstacles;
     f32 dt = state->deltaTime;
-    o->position.x += dt * o->xVelocity;
-    if(o->position.x < -10){
-        o->position.x = o->xStartPosition;
+    for(u32 i = 0; i < tot; i++){
+        Obstacle* o = &state->obstacles[i];
+        o->position.x += dt * o->xVelocity;
+        if(o->position.x < -10){
+            o->position.x = o->xStartPosition;
+        }
+        f32 len = length(o->position - p->position);
+        if(len < 1){
+            state->clearColor = Vector4(0, 0, 0, 1);
+            state->mode = GameMode::GAME_MODE_OVER;
+        }
     }
+    
 }
 
 static void updatePlayer(GameState* state){
@@ -198,7 +214,7 @@ static void updatePlayer(GameState* state){
     f32 dt = state->deltaTime;
 
     if(!p->isJumping && keyPressedOnce(state, c->KEY_W)){
-        p->yVelocity = 30;
+        p->yVelocity = 50;
         p->isJumping = true;
     }
 
@@ -215,13 +231,39 @@ static void updatePlayer(GameState* state){
    
 }
 
-static void checkForPlayerCollision(GameState* state){
+static void renderGame(GameState* state){
+    Camera* cam = &state->camera;
     Player* p = &state->player;
-    Obstacle* o = &state->obstacle;
-    f32 len = length(o->position - p->position);
-    if(len < 1){
-        state->clearColor = Vector4(0, 0, 0, 1);
-        state->mode = GameMode::GAME_MODE_OVER;
+    u32 tot = state->totalObstacles;
+    debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
+    debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
+    debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
+    for(u32 i = 0; i < tot; i++){
+        Obstacle* o = &state->obstacles[i];
+        debugCube(state, o->position, o->scale, o->color);
+    }
+    // addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
+    // addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
+    debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
+
+
+    
+    s8 buf[32];
+    createDebugString(buf, "Score: %i", state->score);
+    addTextToBuffer(state, buf, 450, 650, 3, Vector4(0, 0, 0, 1));
+}
+
+static void resetGame(GameState* state){
+    state->mode = GameMode::GAME_MODE_PLAYING;
+    state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
+    state->score = 0;
+    state->gameTime = 0;
+
+    f32 tot = state->totalObstacles;
+    for(u32 i = 0; i < tot; i++){
+        Obstacle* o = &state->obstacles[i];
+        o->position = Vector3(o->xStartPosition, (randomU32() % 10) + 0.5, 0);
+        o->xVelocity = -((s32)randomU32() % 10) - 15;
     }
 }
 
@@ -256,14 +298,21 @@ static void initializeGameState(GameState* state){
     state->player.mesh = state->osFunctions.createTexturedMesh("character.texmesh");
     state->gravity = -100;
 
-    state->obstacle.orientation = Quaternion();
-    rotate(&state->obstacle.orientation, Vector3(0, 1, 0), -HALF_PI);
-    state->obstacle.xStartPosition = 35;
-    state->obstacle.position = Vector3(state->obstacle.xStartPosition, 0.5, 0);
-    state->obstacle.scale = Vector3(1);
-    state->obstacle.mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
-    state->obstacle.mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
-    state->obstacle.xVelocity = -15;
+    state->totalObstacles = 8;
+
+    for(u32 i = 0; i < state->totalObstacles; i++){
+        state->obstacles[i].orientation = Quaternion();
+        rotate(&state->obstacles[i].orientation, Vector3(0, 1, 0), -HALF_PI);
+        state->obstacles[i].xStartPosition = (i + 1) * 35;
+        state->obstacles[i].position = Vector3(state->obstacles[i].xStartPosition, (randomU32() % 10) + 0.5, 0);
+        state->obstacles[i].scale = Vector3(1);
+        state->obstacles[i].mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
+        state->obstacles[i].mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
+        state->obstacles[i].xVelocity = -((s32)randomU32() % 10) - 15;
+        u32 max = -1;
+        f32 maxf = max;
+        state->obstacles[i].color = Vector4((f32)randomU32() / maxf, (f32)randomU32() / maxf, (f32)randomU32() / maxf, 1);
+    }
 
     state->mode = GameMode::GAME_MODE_INTRO;
 
@@ -282,29 +331,20 @@ extern "C" void updateGameState(GameState* state){
     Camera* cam = &state->camera;
     InputCodes* c = &state->inputCodes;
     Player* p = &state->player;
-    Obstacle* o = &state->obstacle;
 
     switch (state->mode) {
         case GameMode::GAME_MODE_DEBUG : {
             updateCameraWithMouse(state);
             updateCameraWithKeyboard(state);
             updateCameraWithGamepad(state);
+            renderGame(state);
             break;
         }
         case GameMode::GAME_MODE_PLAYING : {
             updatePlayer(state);
-            updateObstacle(state);
-            checkForPlayerCollision(state);
-            debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
-            debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
-            debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
-
-            addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
-            addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
-            s8 buf[32];
-            createDebugString(buf, "Score: %i", state->score);
-            addTextToBuffer(state, buf, 200, 550, 3, Vector4(0, 0, 0, 1));
-            // debugPrint(state, "score: %i", state->score);
+            updateObstacles(state);
+            
+            renderGame(state);
             state->gameTime += state->deltaTime;
             state->score = (state->gameTime * 100);
             break;
@@ -312,21 +352,9 @@ extern "C" void updateGameState(GameState* state){
         case GameMode::GAME_MODE_OVER : {
             addTextToBuffer(state, "GAME OVER", 350, 300, 8, Vector4(1, 0, 0, 1));
             addTextToBuffer(state, "Press R to restart", 350, 250, 4, Vector4(1, 0, 0, 1));
-            debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
-            debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
-            debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
-
-            addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
-            addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
-            s8 buf[32];
-            createDebugString(buf, "Score: %i", state->score);
-            addTextToBuffer(state, buf, 200, 550, 3, Vector4(1, 0, 0, 1));
+            renderGame(state);
             if(keyPressedOnce(state, c->KEY_R)){
-                state->obstacle.position = Vector3(state->obstacle.xStartPosition, 0.5, 0);
-                state->mode = GameMode::GAME_MODE_PLAYING;
-                state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
-                state->score = 0;
-                state->gameTime = 0;
+                resetGame(state);
             }
             break;
         }

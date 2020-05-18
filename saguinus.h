@@ -192,6 +192,7 @@ struct Gamepad {
 struct Obstacle {
     Vector3 position;
     Vector3 scale;
+    Vector4 color;
     Quaternion orientation;
     TexturedMesh mesh;
     f32 xVelocity;
@@ -207,6 +208,8 @@ struct Player {
     bool isJumping;
 };
 
+#define MAX_OBSTACLES 256
+
 struct GameState {
     TextBuffer textBuffer;
     DebugBuffer debugBuffer;
@@ -221,7 +224,7 @@ struct GameState {
     Camera camera;
     PointLight light;
 
-    Obstacle obstacle;
+    Obstacle obstacles[MAX_OBSTACLES];
     Player player;
 
     Gamepad gamepad1;
@@ -247,6 +250,7 @@ struct GameState {
     f32 gravity;
     f32 gameTime;
     u32 score;
+    u32 totalObstacles;
     s32 mouseScrollDelta;
 
     bool updateCamera;
