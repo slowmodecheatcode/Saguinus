@@ -332,41 +332,41 @@ extern "C" void updateGameState(GameState* state){
     InputCodes* c = &state->inputCodes;
     Player* p = &state->player;
 
-    switch (state->mode) {
-        case GameMode::GAME_MODE_DEBUG : {
-            updateCameraWithMouse(state);
-            updateCameraWithKeyboard(state);
-            updateCameraWithGamepad(state);
-            renderGame(state);
-            break;
-        }
-        case GameMode::GAME_MODE_PLAYING : {
-            updatePlayer(state);
-            updateObstacles(state);
+    // switch (state->mode) {
+    //     case GameMode::GAME_MODE_DEBUG : {
+    //         updateCameraWithMouse(state);
+    //         updateCameraWithKeyboard(state);
+    //         updateCameraWithGamepad(state);
+    //         renderGame(state);
+    //         break;
+    //     }
+    //     case GameMode::GAME_MODE_PLAYING : {
+    //         updatePlayer(state);
+    //         updateObstacles(state);
             
-            renderGame(state);
-            state->gameTime += state->deltaTime;
-            state->score = (state->gameTime * 100);
-            break;
-        }
-        case GameMode::GAME_MODE_OVER : {
-            addTextToBuffer(state, "GAME OVER", 350, 300, 8, Vector4(1, 0, 0, 1));
-            addTextToBuffer(state, "Press R to restart", 350, 250, 4, Vector4(1, 0, 0, 1));
-            renderGame(state);
-            if(keyPressedOnce(state, c->KEY_R)){
-                resetGame(state);
-            }
-            break;
-        }
-        case GameMode::GAME_MODE_INTRO : {
-            addTextToBuffer(state, "GAME TITLE", 300, 500, 10, Vector4(1, 1, 1, 1));
-            addTextToBuffer(state, "Press SPACE to Begin", 300, 450, 6, Vector4(1, 1, 1, 1));
-            if(keyPressedOnce(state, c->KEY_SPACE)){
-                state->mode = GameMode::GAME_MODE_PLAYING;
-            }
-            break;
-        }
-    }
+    //         renderGame(state);
+    //         state->gameTime += state->deltaTime;
+    //         state->score = (state->gameTime * 100);
+    //         break;
+    //     }
+    //     case GameMode::GAME_MODE_OVER : {
+    //         addTextToBuffer(state, "GAME OVER", 350, 300, 8, Vector4(1, 0, 0, 1));
+    //         addTextToBuffer(state, "Press R to restart", 350, 250, 4, Vector4(1, 0, 0, 1));
+    //         renderGame(state);
+    //         if(keyPressedOnce(state, c->KEY_R)){
+    //             resetGame(state);
+    //         }
+    //         break;
+    //     }
+    //     case GameMode::GAME_MODE_INTRO : {
+    //         addTextToBuffer(state, "GAME TITLE", 300, 500, 10, Vector4(1, 1, 1, 1));
+    //         addTextToBuffer(state, "Press SPACE to Begin", 300, 450, 6, Vector4(1, 1, 1, 1));
+    //         if(keyPressedOnce(state, c->KEY_SPACE)){
+    //             state->mode = GameMode::GAME_MODE_PLAYING;
+    //         }
+    //         break;
+    //     }
+    // }
 
     if(keyPressedOnce(state, c->KEY_B)){
         if(state->mode != GameMode::GAME_MODE_DEBUG){
@@ -376,7 +376,9 @@ extern "C" void updateGameState(GameState* state){
         }
     }
 
-    updateCameraView(&state->camera);
+    //updateCameraView(&state->camera);
+    lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
+    renderGame(state);
 
     debugPrint(state, "debug mode:%b", state->debugMode);
     debugPrint(state, "delta time: %f4", state->deltaTime);

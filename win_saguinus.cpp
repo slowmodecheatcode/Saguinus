@@ -252,6 +252,77 @@ static void initializeTextRenderer(){
     textRenderer.currentFont = &debugFont;
 }
 
+static void initializeCanvasRenderer(){
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* pixelBlob;
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"canvas_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"canvas_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+
+    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &canvasRenderer.vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &canvasRenderer.pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &canvasRenderer.inputLayout);
+    checkError(hr, "Could not create input layout");
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    D3D11_SUBRESOURCE_DATA bufferData = {};
+    bufferDesc.ByteWidth = MEGABYTE(32);
+    bufferData.pSysMem = tempStorageBuffer;
+
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &canvasRenderer.vertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+
+    canvasRenderer.vertexStride = sizeof(float) * 4;
+    canvasRenderer.vertexOffset = 0;
+
+    //TEMPORARY BUFFER SIZE --- FIX THIS!!
+    bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &canvasRenderer.indexBuffer);
+    checkError(hr, "Error creating index buffer");
+
+    D3D11_BUFFER_DESC vertConstDesc = {};
+    vertConstDesc.ByteWidth = sizeof(canvasRenderer.vertexConstants);
+    vertConstDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    canvasRenderer.vertexConstants.projectionMatrix = createOrthogonalProjection(0, windowWidth, 0, windowHeight, -1, 1);
+
+    D3D11_SUBRESOURCE_DATA constBufData = {};
+    constBufData.pSysMem = &canvasRenderer.vertexConstants;
+
+    hr = d3d11Device->CreateBuffer(&vertConstDesc, &constBufData, &canvasRenderer.vertexConstBuffer);
+    checkError(hr, "Error creating vertex constant buffer");
+
+    D3D11_BUFFER_DESC pixConstBufDesc = {};
+    pixConstBufDesc.ByteWidth = sizeof(canvasRenderer.pixelConstants);
+    pixConstBufDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
+    pixConstBufData.pSysMem = &canvasRenderer.pixelConstants;
+
+    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &canvasRenderer.pixelConstBuffer);
+    checkError(hr, "Error creating pixel constant buffer");
+
+    u8 pix[] = {255, 255, 255, 255};
+    canvasRenderer.defaultTexture = createTexture2D(pix, 1, 1, 4);
+}
+
 static void initializeDebugRenderer(){
     ID3DBlob* vertexBlob; 
     ID3DBlob* pixelBlob;
@@ -530,6 +601,55 @@ static void renderTextBuffer(TextBuffer* buffer){
     buffer->debugPrinterY = buffer->debugPrinterStartY;
 }
 
+static void renderQuad(Vector2 position, Vector2 scale, Texture2D texture, Vector4 color, f32 depth){
+    d3d11Context->PSSetSamplers(0, 1, &pointSampler);
+    d3d11Context->VSSetShader(canvasRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(canvasRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(canvasRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &canvasRenderer.vertexBuffer, &canvasRenderer.vertexStride, &canvasRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(canvasRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &canvasRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &canvasRenderer.pixelConstBuffer);
+    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&texture.texture);
+
+    D3D11_MAPPED_SUBRESOURCE vertData;
+    D3D11_MAPPED_SUBRESOURCE indData;
+    d3d11Context->Map(canvasRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
+    d3d11Context->Map(canvasRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+    
+    f32* vdat = (f32*)vertData.pData;
+    u16* idat = (u16*)indData.pData;
+
+    u32 vctr = 0;
+    u32 ictr = 0;
+    u32 polyCtr = 0;
+
+    vdat[vctr++] = position.x; vdat[vctr++] = position.y; vdat[vctr++] = 0; vdat[vctr++] = 1;
+    vdat[vctr++] = position.x; vdat[vctr++] = position.y + scale.y; vdat[vctr++] = 0; vdat[vctr++] = 0;
+    vdat[vctr++] = position.x + scale.x; vdat[vctr++] = position.y + scale.y; vdat[vctr++] = 1; vdat[vctr++] = 0;
+    vdat[vctr++] = position.x + scale.x; vdat[vctr++] = position.y; vdat[vctr++] = 1; vdat[vctr++] = 1;
+
+    idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
+    idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
+    polyCtr += 4;
+
+    canvasRenderer.vertexConstants.depth = depth;
+    d3d11Context->UpdateSubresource(canvasRenderer.vertexConstBuffer, 0, 0, &canvasRenderer.vertexConstants, 0, 0);
+    canvasRenderer.pixelConstants.color = color;
+    d3d11Context->UpdateSubresource(canvasRenderer.pixelConstBuffer, 0, 0, &canvasRenderer.pixelConstants, 0, 0);
+    d3d11Context->Unmap(canvasRenderer.vertexBuffer, 0);
+    d3d11Context->Unmap(canvasRenderer.indexBuffer, 0);
+    d3d11Context->DrawIndexed(ictr, 0, 0);
+}
+
+static void renderQuad(Vector2 position, Vector2 scale, Texture2D texture, f32 depth){
+    renderQuad(position, scale, texture, depth);
+}
+
+static void renderQuad(Vector2 position, Vector2 scale, Vector4 color, f32 depth){
+    renderQuad(position, scale, canvasRenderer.defaultTexture, color, depth);
+}
+
 static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, PointLight* light){
     d3d11Context->PSSetSamplers(0, 1, &linearSampler);
     d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
@@ -558,6 +678,10 @@ static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, Po
         d3d11Context->DrawIndexed(tmb->indexCounts[i], tmb->indexOffsets[i], tmb->indexAddons[i]);
     }
     tmb->totalMeshes = 0;
+}
+
+static void setMasterAudioVolume(f32 v){
+        checkError(XAudio2MasterVoice->SetVolume(0.002), "Could not set master volume");
 }
 
 static void updateAudioEmitterDynamics(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt){
@@ -677,7 +801,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     checkError(XAudio2Create(&XAudio2Pointer, 0, XAUDIO2_DEFAULT_PROCESSOR), "Could not initialize XAudio2");
     CoInitialize(0);
     checkError(XAudio2Pointer->CreateMasteringVoice(&XAudio2MasterVoice), "Could not create mastering voice");
-    checkError(XAudio2MasterVoice->SetVolume(0.002), "Could not set master volume");
 
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
     gameState = (GameState*)VirtualAlloc(0, sizeof(GameState), MEM_COMMIT, PAGE_READWRITE);
@@ -816,6 +939,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     d3d11Context->OMSetBlendState(blendState, 0, 0xffffffff);
 
     initializeTextRenderer();
+    initializeCanvasRenderer();
     initializeTexturedMeshRenderer();
     initializeDebugRenderer();
 
@@ -852,6 +976,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.createAudioEmitter = &createAudioEmitter;
     gameState->osFunctions.updateAudioEmitterDynamics = &updateAudioEmitterDynamics;
     gameState->osFunctions.playAudioEmitter = &playAudioEmitter;
+    gameState->osFunctions.setMasterAudioVolume = &setMasterAudioVolume;
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
     initializeKeyCodes(gameState);
@@ -924,11 +1049,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
+        
         renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
         renderDebugBuffer(&gameState->debugBuffer, &gameState->camera);
         renderTextBuffer(&gameState->textBuffer);
-        
 
+        renderQuad(Vector2(125, 125), Vector2(200, 200), Vector4(1, 0, 1, 1), -0.1);
+        renderQuad(Vector2(200, 100), Vector2(400, 400), Vector4(1, 1, 0, 0.5), -0);
+        
         swapChain->Present(1, 0);
 
         QueryPerformanceCounter(&endTime);

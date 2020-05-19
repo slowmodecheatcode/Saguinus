@@ -119,3 +119,27 @@ static void updateCameraView(Camera* camera){
     camera->up = Vector3(camera->view.m2[0][1], camera->view.m2[1][1], camera->view.m2[2][1]);
     camera->forward = Vector3(-camera->view.m2[0][2], -camera->view.m2[1][2], -camera->view.m2[2][2]);
 }
+
+static void lookAt(Camera* camera, Vector3 position, Vector3 target, Vector3 up = Vector3(0, 1, 0)){
+    camera->forward = normalOf(target - position);
+    camera->right = normalOf(cross(camera->forward, normalOf(up)));
+    camera->up = normalOf(cross(camera->right, camera->forward));
+    camera->position = position;
+    camera->view.m2[0][0] = camera->right.x;
+    camera->view.m2[0][1] = camera->up.x;
+    camera->view.m2[0][2] = -camera->forward.x;
+    camera->view.m2[0][3] = 0;
+    camera->view.m2[1][0] = camera->right.y;
+    camera->view.m2[1][1] = camera->up.y;
+    camera->view.m2[1][2] = -camera->forward.y;
+    camera->view.m2[1][3] = 0;
+    camera->view.m2[2][0] = camera->right.z;
+    camera->view.m2[2][1] = camera->up.z;
+    camera->view.m2[2][2] = -camera->forward.z;
+    camera->view.m2[2][3] = 0;
+    camera->view.m2[3][0] = dot(-camera->right, position);
+    camera->view.m2[3][1] = dot(-camera->up, position);
+    camera->view.m2[3][2] = dot(camera->forward, position);
+    camera->view.m2[3][3] = 1;
+    camera->orientation = matrix4ToQuaternion(&camera->view);
+}

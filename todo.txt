@@ -1,19 +1,26 @@
+FEATURE:
 canvas renderer
 gui system
-camera lookat 
-make text positioning scale with window
-make function to set global sound volume
 writing to files
-
+mouse picking
+animated meshes
+terrain generation and rendering
+instance rendering
 skybox rendering
+shadow mapping
+import fonts from .ttf .otf
+improve lighting
 
-function timing
-use mapping to update constant buffers
+BUG FIX:
+make text and canvas positioning scale with window
 handle updating resolution on window resize
 
-import fonts from .ttf .otf
+OPTIMIZATION:
+function timing
+use mapping to update constant buffers
 optimize input
-improve lighting
 replace math.h's trig functions
-animated meshes
 look into getting rid of padding variables in constant buffer structs
+
+
+

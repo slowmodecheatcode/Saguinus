@@ -68,8 +68,31 @@ struct TextRenderer {
     ID3D11VertexShader* vertexShader;
     ID3D11PixelShader* pixelShader;
     ID3D11InputLayout* inputLayout;
-    Texture2D defaultTexture;
     Font* currentFont;
+
+    u32 vertexStride;
+    u32 vertexOffset;
+};
+
+struct CanvasRenderer {
+    struct VertexConstants {
+        Matrix4 projectionMatrix;
+        f32 depth;
+        Vector3 pad;
+    } vertexConstants;
+
+    struct PixelConstants {
+        Vector4 color;
+    } pixelConstants;
+
+    ID3D11Buffer* vertexBuffer;
+    ID3D11Buffer* indexBuffer;
+    ID3D11Buffer* vertexConstBuffer;
+    ID3D11Buffer* pixelConstBuffer;
+    ID3D11VertexShader* vertexShader;
+    ID3D11PixelShader* pixelShader;
+    ID3D11InputLayout* inputLayout;
+    Texture2D defaultTexture;
 
     u32 vertexStride;
     u32 vertexOffset;
@@ -115,6 +138,7 @@ static Font debugFont;
 
 static TexturedMeshRenderer texturedMeshRenderer;
 static TextRenderer textRenderer;
+static CanvasRenderer canvasRenderer;
 static DebugRenderer debugRenderer;
 
 static bool keyInputs[128];

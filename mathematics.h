@@ -166,6 +166,19 @@ static Vector3 normalOf(Vector3 v){
     return v;
 }
 
+static Quaternion matrix4ToQuaternion(Matrix4* mat){
+    Quaternion q;
+
+    f32 qw = sqrt(1 + mat->m2[0][0] + mat->m2[1][1] + mat->m2[2][2]) * 0.5;
+    f32 qwX4 = 4 * qw;
+    q.x = (mat->m2[1][2] - mat->m2[2][1]) / qwX4;
+    q.y = (mat->m2[2][0] - mat->m2[0][2]) / qwX4;
+    q.z = (mat->m2[0][1] - mat->m2[1][0]) / qwX4;
+    q.w = qw;
+
+    return q;
+}
+
 static Matrix4 createIdentityMatrix(){
     Matrix4 m;
     m.m[0] = 1; m.m[1] = 0; m.m[2] = 0; m.m[3] = 0;

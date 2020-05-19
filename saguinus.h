@@ -168,6 +168,7 @@ struct OSFunctions {
     void (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
     void (*updateAudioEmitterDynamics)(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt);
     void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
+    void (*setMasterAudioVolume)(f32 v);
     Texture2D (*createTexture2D)(const s8* fileName, u32 bytesPerPixel);
     TexturedMesh (*createTexturedMesh)(const s8* fileName);
     AudioEmitter (*createAudioEmitter)();
