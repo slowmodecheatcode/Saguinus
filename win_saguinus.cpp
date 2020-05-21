@@ -167,91 +167,6 @@ static void initializeTexturedMeshRenderer(){
     texturedMeshRenderer.defaultTexture = createTexture2D(tex, 2, 2, 4);
 }
 
-static void initializeTextRenderer(){
-    ID3DBlob* vertexBlob; 
-    ID3DBlob* pixelBlob;
-    ID3DBlob* errBlob = 0;               
-    D3DCompileFromFile(L"text_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
-    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
-    D3DCompileFromFile(L"text_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
-    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
-
-    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &textRenderer.vertexShader);
-    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
-    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &textRenderer.pixelShader);
-    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
-
-    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
-        { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    };
-    
-    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &textRenderer.inputLayout);
-    checkError(hr, "Could not create input layout");
-
-    //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    D3D11_BUFFER_DESC bufferDesc = {};
-    bufferDesc.ByteWidth = MEGABYTE(32);
-    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-    D3D11_SUBRESOURCE_DATA bufferData = {};
-    bufferDesc.ByteWidth = MEGABYTE(32);
-    bufferData.pSysMem = tempStorageBuffer;
-
-    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &textRenderer.vertexBuffer);
-    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
-
-    textRenderer.vertexStride = sizeof(float) * 4;
-    textRenderer.vertexOffset = 0;
-
-    //TEMPORARY BUFFER SIZE --- FIX THIS!!
-    bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &textRenderer.indexBuffer);
-    checkError(hr, "Error creating index buffer");
-
-    bufferDesc.ByteWidth = sizeof(textRenderer.vertexConstants);
-    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-
-    textRenderer.vertexConstants.projectionMatrix = createOrthogonalProjection(0, windowWidth, 0, windowHeight, -1, 1);
-
-    D3D11_SUBRESOURCE_DATA constBufData = {};
-    constBufData.pSysMem = &textRenderer.vertexConstants;
-
-    hr = d3d11Device->CreateBuffer(&bufferDesc, &constBufData, &textRenderer.vertexConstBuffer);
-    checkError(hr, "Error creating vertex constant buffer");
-
-    D3D11_BUFFER_DESC pixConstBufDesc = {};
-    pixConstBufDesc.ByteWidth = sizeof(textRenderer.pixelConstants);
-    pixConstBufDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-
-    D3D11_SUBRESOURCE_DATA pixConstBufData = {};
-    pixConstBufData.pSysMem = &textRenderer.pixelConstants;
-
-    hr = d3d11Device->CreateBuffer(&pixConstBufDesc, &pixConstBufData, &textRenderer.pixelConstBuffer);
-    checkError(hr, "Error creating pixel constant buffer");
-
-    debugFont.bitmapWidth = debugFontBitmapWidth;
-    debugFont.bitmapHeight = debugFontBitmapHeight;
-    debugFont.totalCharacters = debugFontTotalCharacters;
-    debugFont.missingCharacterCodeIndex = debugFontMissingCharacterCodeIndex;
-    debugFont.characterCodes = debugFontCharacterCodes;
-    debugFont.xOffset = debugFontCharacterXOffset;
-    debugFont.yOffset = debugFontCharacterYOffset;
-    debugFont.width = debugFontCharacterWidth;
-    debugFont.height = debugFontCharacterHeight;
-    debugFont.bitmapX = debugFontCharacterBitmapX;
-    debugFont.bitmapY = debugFontCharacterBitmapY;
-    debugFont.bitmapCharacterWidth = debugFontCharacterBitmapWidth;
-    debugFont.bitmapCharacterHeight = debugFontCharacterBitmapHeight;
-    debugFont.kerning = debugFontCharacterKernAmount;
-    debugFont.bitmap = createTexture2D(debugFontBitmapPixels, 50, 50, 1);
-
-    textRenderer.currentFont = &debugFont;
-}
-
 static void initializeCanvasRenderer(){
     ID3DBlob* vertexBlob; 
     ID3DBlob* pixelBlob;
@@ -321,6 +236,22 @@ static void initializeCanvasRenderer(){
 
     u8 pix[] = {255, 255, 255, 255};
     canvasRenderer.defaultTexture = createTexture2D(pix, 1, 1, 4);
+
+    debugFont.bitmapWidth = debugFontBitmapWidth;
+    debugFont.bitmapHeight = debugFontBitmapHeight;
+    debugFont.totalCharacters = debugFontTotalCharacters;
+    debugFont.missingCharacterCodeIndex = debugFontMissingCharacterCodeIndex;
+    debugFont.characterCodes = debugFontCharacterCodes;
+    debugFont.xOffset = debugFontCharacterXOffset;
+    debugFont.yOffset = debugFontCharacterYOffset;
+    debugFont.width = debugFontCharacterWidth;
+    debugFont.height = debugFontCharacterHeight;
+    debugFont.bitmapX = debugFontCharacterBitmapX;
+    debugFont.bitmapY = debugFontCharacterBitmapY;
+    debugFont.bitmapCharacterWidth = debugFontCharacterBitmapWidth;
+    debugFont.bitmapCharacterHeight = debugFontCharacterBitmapHeight;
+    debugFont.kerning = debugFontCharacterKernAmount;
+    debugFont.bitmap = createTexture2D(debugFontBitmapPixels, 50, 50, 1);
 }
 
 static void initializeDebugRenderer(){
@@ -532,76 +463,7 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
     return m;
 }
 
-static void renderTextBuffer(TextBuffer* buffer){
-    Font* f = textRenderer.currentFont;
-    d3d11Context->PSSetSamplers(0, 1, &pointSampler);
-    d3d11Context->VSSetShader(textRenderer.vertexShader, 0, 0);
-    d3d11Context->PSSetShader(textRenderer.pixelShader, 0, 0);
-    d3d11Context->IASetInputLayout(textRenderer.inputLayout);
-    d3d11Context->IASetVertexBuffers(0, 1, &textRenderer.vertexBuffer, &textRenderer.vertexStride, &textRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(textRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-    d3d11Context->VSSetConstantBuffers(0, 1, &textRenderer.vertexConstBuffer);
-    d3d11Context->PSSetConstantBuffers(0, 1, &textRenderer.pixelConstBuffer);
-    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&f->bitmap.texture);
-
-    D3D11_MAPPED_SUBRESOURCE vertData;
-    D3D11_MAPPED_SUBRESOURCE indData;
-    d3d11Context->Map(textRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
-    d3d11Context->Map(textRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
-    
-    f32* vdat = (f32*)vertData.pData;
-    u16* idat = (u16*)indData.pData;
-
-    u32 vctr = 0;
-    u32 ictr = 0;
-    u32 polyCtr = 0;
-
-    u32 strCt = buffer->totalStrings;
-    for(u32 i = 0; i < strCt; i++){
-
-        f32 xStart = buffer->xPositions[i];
-        f32 yStart = buffer->yPositions[i];
-        f32 scale = buffer->scales[i];
-
-        const s8* c = buffer->strings[i];
-        while(*c != '\0'){
-            u32 charIndex = binarySearch(f->characterCodes, *c, 0, f->totalCharacters, f->missingCharacterCodeIndex);
-            
-            f32 bmX = f->bitmapX[charIndex];
-            f32 bmY = f->bitmapY[charIndex];
-            f32 bmW = f->bitmapCharacterWidth[charIndex];
-            f32 bmH = f->bitmapCharacterHeight[charIndex];
-            f32 cW = f->width[charIndex];
-            f32 cH = f->height[charIndex];
-
-            vdat[vctr++] = xStart; vdat[vctr++] = yStart; vdat[vctr++] = bmX; vdat[vctr++] = bmY + bmH ;
-            vdat[vctr++] = xStart; vdat[vctr++] =  yStart + (cH * scale); vdat[vctr++] = bmX; vdat[vctr++] = bmY;
-            vdat[vctr++] = xStart + (cW * scale); vdat[vctr++] = yStart + (cH * scale); vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY;
-            vdat[vctr++] =  xStart + (cW * scale); vdat[vctr++] = yStart; vdat[vctr++] = bmX + bmW; vdat[vctr++] = bmY + bmH;
-
-            xStart += (cW * scale) + f->kerning[charIndex];
-
-            idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
-            idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
-            polyCtr += 4;
-
-            c++;
-        }
-        
-        textRenderer.pixelConstants.color = buffer->colors[i];
-        d3d11Context->UpdateSubresource(textRenderer.pixelConstBuffer, 0, 0, &textRenderer.pixelConstants, 0, 0);
-        d3d11Context->DrawIndexed(ictr, 0, 0);
-    }
-
-    d3d11Context->Unmap(textRenderer.vertexBuffer, 0);
-    d3d11Context->Unmap(textRenderer.indexBuffer, 0);
-    
-
-    buffer->totalStrings = 0;
-    buffer->debugPrinterY = buffer->debugPrinterStartY;
-}
-
-static void renderQuad(Vector2 position, Vector2 scale, Texture2D texture, Vector4 color, f32 depth){
+static void renderCanvasBuffer(CanvasBuffer* buffer){
     d3d11Context->PSSetSamplers(0, 1, &pointSampler);
     d3d11Context->VSSetShader(canvasRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(canvasRenderer.pixelShader, 0, 0);
@@ -610,44 +472,51 @@ static void renderQuad(Vector2 position, Vector2 scale, Texture2D texture, Vecto
     d3d11Context->IASetIndexBuffer(canvasRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
     d3d11Context->VSSetConstantBuffers(0, 1, &canvasRenderer.vertexConstBuffer);
     d3d11Context->PSSetConstantBuffers(0, 1, &canvasRenderer.pixelConstBuffer);
-    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&texture.texture);
 
-    D3D11_MAPPED_SUBRESOURCE vertData;
-    D3D11_MAPPED_SUBRESOURCE indData;
-    d3d11Context->Map(canvasRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
-    d3d11Context->Map(canvasRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
-    
-    f32* vdat = (f32*)vertData.pData;
-    u16* idat = (u16*)indData.pData;
+    u32 tot = buffer->totalGUIItems;
+    f32 depth = -0.9999;
+    for(u32 i = 0; i < tot; i++){
+        d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&buffer->textures[i]);
 
-    u32 vctr = 0;
-    u32 ictr = 0;
-    u32 polyCtr = 0;
+        Vector2 position = buffer->positions[i];
+        Vector2 scale = buffer->scales[i];
+        Vector2 textureOffset = buffer->textureOffsets[i];
+        Vector2 textureScale = buffer->textureScales[i];
 
-    vdat[vctr++] = position.x; vdat[vctr++] = position.y; vdat[vctr++] = 0; vdat[vctr++] = 1;
-    vdat[vctr++] = position.x; vdat[vctr++] = position.y + scale.y; vdat[vctr++] = 0; vdat[vctr++] = 0;
-    vdat[vctr++] = position.x + scale.x; vdat[vctr++] = position.y + scale.y; vdat[vctr++] = 1; vdat[vctr++] = 0;
-    vdat[vctr++] = position.x + scale.x; vdat[vctr++] = position.y; vdat[vctr++] = 1; vdat[vctr++] = 1;
+        D3D11_MAPPED_SUBRESOURCE vertData;
+        D3D11_MAPPED_SUBRESOURCE indData;
+        d3d11Context->Map(canvasRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &vertData);
+        d3d11Context->Map(canvasRenderer.indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &indData);
+        
+        f32* vdat = (f32*)vertData.pData;
+        u16* idat = (u16*)indData.pData;
 
-    idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
-    idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
-    polyCtr += 4;
+        u32 vctr = 0;
+        u32 ictr = 0;
+        u32 polyCtr = 0;
 
-    canvasRenderer.vertexConstants.depth = depth;
-    d3d11Context->UpdateSubresource(canvasRenderer.vertexConstBuffer, 0, 0, &canvasRenderer.vertexConstants, 0, 0);
-    canvasRenderer.pixelConstants.color = color;
-    d3d11Context->UpdateSubresource(canvasRenderer.pixelConstBuffer, 0, 0, &canvasRenderer.pixelConstants, 0, 0);
-    d3d11Context->Unmap(canvasRenderer.vertexBuffer, 0);
-    d3d11Context->Unmap(canvasRenderer.indexBuffer, 0);
-    d3d11Context->DrawIndexed(ictr, 0, 0);
-}
+        vdat[vctr++] = position.x; vdat[vctr++] = position.y; vdat[vctr++] = textureOffset.x; vdat[vctr++] = textureOffset.y + textureScale.y;
+        vdat[vctr++] = position.x; vdat[vctr++] = position.y + scale.y; vdat[vctr++] = textureOffset.x; vdat[vctr++] = textureOffset.y;
+        vdat[vctr++] = position.x + scale.x; vdat[vctr++] = position.y + scale.y; vdat[vctr++] = textureOffset.x + textureScale.x; vdat[vctr++] = textureOffset.y;
+        vdat[vctr++] = position.x + scale.x; vdat[vctr++] = position.y; vdat[vctr++] = textureOffset.x + textureScale.x; vdat[vctr++] = textureOffset.y + textureScale.y;
 
-static void renderQuad(Vector2 position, Vector2 scale, Texture2D texture, f32 depth){
-    renderQuad(position, scale, texture, depth);
-}
+        idat[ictr++] = polyCtr; idat[ictr++] = polyCtr + 1; idat[ictr++] = polyCtr + 2; 
+        idat[ictr++] = polyCtr + 2; idat[ictr++] = polyCtr + 3; idat[ictr++] = polyCtr;
+        polyCtr += 4;
 
-static void renderQuad(Vector2 position, Vector2 scale, Vector4 color, f32 depth){
-    renderQuad(position, scale, canvasRenderer.defaultTexture, color, depth);
+        canvasRenderer.vertexConstants.depth = depth;
+        canvasRenderer.vertexConstants.isText = buffer->isText[i];
+        d3d11Context->UpdateSubresource(canvasRenderer.vertexConstBuffer, 0, 0, &canvasRenderer.vertexConstants, 0, 0);
+        depth += 0.0001;
+        canvasRenderer.pixelConstants.color = buffer->colors[i];
+        d3d11Context->UpdateSubresource(canvasRenderer.pixelConstBuffer, 0, 0, &canvasRenderer.pixelConstants, 0, 0);
+        d3d11Context->Unmap(canvasRenderer.vertexBuffer, 0);
+        d3d11Context->Unmap(canvasRenderer.indexBuffer, 0);
+        d3d11Context->DrawIndexed(ictr, 0, 0);
+    }
+
+    buffer->totalGUIItems = 0;
+    buffer->debugPrinterY = buffer->debugPrinterStartY;
 }
 
 static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, PointLight* light){
@@ -938,7 +807,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     d3d11Context->OMSetBlendState(blendState, 0, 0xffffffff);
 
-    initializeTextRenderer();
     initializeCanvasRenderer();
     initializeTexturedMeshRenderer();
     initializeDebugRenderer();
@@ -970,7 +838,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     gameState->windowDimenstion = Vector2(windowWidth, windowHeight);
     gameState->osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
-    gameState->osFunctions.createTexture2D = &createTexture2D;
+    gameState->osFunctions.createTexture2DFromFile = &createTexture2D;
+    gameState->osFunctions.createTexture2DFromData = &createTexture2D;
     gameState->osFunctions.createTexturedMesh = &createTexturedMesh;
     gameState->osFunctions.allocateMemory = &allocateMemory;
     gameState->osFunctions.createAudioEmitter = &createAudioEmitter;
@@ -979,9 +848,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.setMasterAudioVolume = &setMasterAudioVolume;
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
+    gameState->currentFont = &debugFont;
     initializeKeyCodes(gameState);
 
     bool spaceDown = false;
+    Texture2D testText = createTexture2D("suzanne.texpix", 4);
 
     f32 deltaTime = 0;
     LARGE_INTEGER endTime;
@@ -1049,13 +920,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
-        
         renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
         renderDebugBuffer(&gameState->debugBuffer, &gameState->camera);
-        renderTextBuffer(&gameState->textBuffer);
-
-        renderQuad(Vector2(125, 125), Vector2(200, 200), Vector4(1, 0, 1, 1), -0.1);
-        renderQuad(Vector2(200, 100), Vector2(400, 400), Vector4(1, 1, 0, 0.5), -0);
+        //renderTextBuffer(&gameState->textBuffer);
+        renderCanvasBuffer(&gameState->canvasBuffer);
         
         swapChain->Present(1, 0);
 

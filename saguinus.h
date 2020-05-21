@@ -8,6 +8,7 @@
 #define MAX_DEBUG_CUBES 256
 #define MAX_DEBUG_LINES 256
 #define MAX_TEXTURED_MESHES 256
+#define MAX_GUI_ITEMS 256
 
 enum GameMode {
     GAME_MODE_INTRO,
@@ -139,16 +140,33 @@ struct TexturedMeshBuffer {
     u32 totalMeshes;
 };
 
-struct TextBuffer {
-    s8 strings[MAX_STRINGS][MAX_STRING_LENGTH];
-    Vector4 colors[MAX_STRINGS];
-    f32 xPositions[MAX_STRINGS];
-    f32 yPositions[MAX_STRINGS];
-    f32 scales[MAX_STRINGS];
+// struct TextBuffer {
+//     s8 strings[MAX_STRINGS][MAX_STRING_LENGTH];
+//     Vector4 colors[MAX_STRINGS];
+//     f32 xPositions[MAX_STRINGS];
+//     f32 yPositions[MAX_STRINGS];
+//     f32 scales[MAX_STRINGS];
+//     f32 debugPrinterX;
+//     f32 debugPrinterY;
+//     f32 debugPrinterStartY;
+//     u32 totalStrings;
+// };
+
+struct CanvasBuffer {
+    Vector4 colors[MAX_GUI_ITEMS];
+    Vector2 positions[MAX_GUI_ITEMS];
+    Vector2 scales[MAX_GUI_ITEMS];
+    Vector2 textureOffsets[MAX_GUI_ITEMS];
+    Vector2 textureScales[MAX_GUI_ITEMS];
+    Texture2D textures[MAX_GUI_ITEMS];
+    bool isText[MAX_GUI_ITEMS];
+
+    Texture2D defaultTexture;
     f32 debugPrinterX;
     f32 debugPrinterY;
     f32 debugPrinterStartY;
-    u32 totalStrings;
+    u32 totalGUIItems;
+
 };
 
 struct DebugBuffer {
@@ -169,7 +187,8 @@ struct OSFunctions {
     void (*updateAudioEmitterDynamics)(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt);
     void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
     void (*setMasterAudioVolume)(f32 v);
-    Texture2D (*createTexture2D)(const s8* fileName, u32 bytesPerPixel);
+    Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
+    Texture2D (*createTexture2DFromData)(u8* data, u32 width, u32 height, u32 bytesPerPixel);
     TexturedMesh (*createTexturedMesh)(const s8* fileName);
     AudioEmitter (*createAudioEmitter)();
 };
@@ -212,9 +231,15 @@ struct Player {
 #define MAX_OBSTACLES 256
 
 struct GameState {
-    TextBuffer textBuffer;
+    //TextBuffer textBuffer;
+    CanvasBuffer canvasBuffer;
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
+
+    Font* currentFont;
+
+    Texture2D testTex1;
+    Texture2D testTex2;
 
     InputCodes inputCodes;
     OSFunctions osFunctions;

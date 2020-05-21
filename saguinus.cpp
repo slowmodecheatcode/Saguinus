@@ -6,27 +6,56 @@ static u32 randomU32(u32 sd = 1){
     return seed;
 }
 
-static void addTextToBuffer(GameState* state, const s8* str, f32 x, f32 y, f32 scale, Vector4 color){
-    TextBuffer* buffer = &state->textBuffer;
+static void addQuadToBuffer(GameState* state, Vector2 position, Vector2 scale, Vector2 textureOffset, Vector2 textureScale, Vector4 color, Texture2D texture, bool isText){
+    CanvasBuffer* buffer = &state->canvasBuffer;
+    u32 idx = buffer->totalGUIItems++;
+    buffer->positions[idx] = position;
+    buffer->scales[idx] = scale;
+    buffer->textureOffsets[idx] = textureOffset;
+    buffer->textureScales[idx] = textureScale;
+    buffer->isText[idx] = isText;
+    buffer->colors[idx] = color;
+    buffer->textures[idx] = texture;
+}
+
+static void addQuadToBuffer(GameState* state, Vector2 position, Vector2 scale, Texture2D texture){
+    addQuadToBuffer(state, position, scale, Vector2(0), Vector2(1), Vector4(1), texture, false);
+}
+
+static void addQuadToBuffer(GameState* state, Vector2 position, Vector2 scale, Vector4 color){
+   addQuadToBuffer(state, position, scale, Vector2(0), Vector2(1), color, state->canvasBuffer.defaultTexture, false);
+}
+
+static void addTextToCanvas(GameState* state, const s8* str, Vector2 position, f32 scale, Vector4 color){
+    Font* font = state->currentFont;
+    CanvasBuffer* buffer = &state->canvasBuffer;
 
     const s8* c = str;
-    u32 ctr = 0;
-    u32 idx = buffer->totalStrings++;
-    concatenateCharacterStrings(buffer->strings[idx], (s8*)str, &ctr);
-    buffer->colors[idx] = color;
-    buffer->xPositions[idx] = x;
-    buffer->yPositions[idx] = y;
-    buffer->scales[idx] = scale;
+    f32 xStart = position.x;
+    while(*c != '\0'){
+        u32 charIndex = binarySearch(font->characterCodes, *c, 0, font->totalCharacters, font->missingCharacterCodeIndex);
+                
+        f32 bmX = font->bitmapX[charIndex];
+        f32 bmY = font->bitmapY[charIndex];
+        f32 bmW = font->bitmapCharacterWidth[charIndex];
+        f32 bmH = font->bitmapCharacterHeight[charIndex];
+        f32 cW = font->width[charIndex];
+        f32 cH = font->height[charIndex];
+
+        addQuadToBuffer(state, position, Vector2(cW * scale, cH * scale), Vector2(bmX, bmY), Vector2(bmW, bmH), color, font->bitmap, true);
+        position.x += (cW * scale) + font->kerning[charIndex];
+        c++;
+    }
 }
 
 static void debugPrint(GameState* state, s8* text, ...){
-    TextBuffer* buffer = &state->textBuffer;
+    CanvasBuffer* buffer = &state->canvasBuffer;
     va_list argptr;
     va_start(argptr, text);
     s8 buf[MAX_STRING_LENGTH];
     createDebugString(buf, text, argptr);
 
-    addTextToBuffer(state, buf, buffer->debugPrinterX, buffer->debugPrinterY, 2, Vector4(0, 0, 0, 1));
+    addTextToCanvas(state, buf, Vector2(buffer->debugPrinterX, buffer->debugPrinterY), 2, Vector4(0, 0, 0, 1));
     buffer->debugPrinterY -= 25;
 
     va_end(argptr);
@@ -248,9 +277,9 @@ static void renderGame(GameState* state){
 
 
     
-    s8 buf[32];
+    s8 buf[64];
     createDebugString(buf, "Score: %i", state->score);
-    addTextToBuffer(state, buf, 450, 650, 3, Vector4(0, 0, 0, 1));
+    addTextToCanvas(state, buf, Vector2(450, 650), 3, Vector4(0, 0, 0, 1));
 }
 
 static void resetGame(GameState* state){
@@ -268,10 +297,20 @@ static void resetGame(GameState* state){
 }
 
 static void initializeGameState(GameState* state){
-    TextBuffer* tb = &state->textBuffer;
-    tb->debugPrinterStartY = state->windowDimenstion.y - 50;
-    tb->debugPrinterX = 25;
-    tb->debugPrinterY = tb->debugPrinterStartY;
+    CanvasBuffer* cb = &state->canvasBuffer;
+    u8 tdat[] = {255, 255, 255, 255};
+    cb->defaultTexture = state->osFunctions.createTexture2DFromData(tdat, 1, 1, 4);
+
+    u8 tt1[] = {255, 0, 0, 255, 255, 255, 0, 255,
+                255, 255, 0, 255, 255, 0, 0, 255};
+    state->testTex1 = state->osFunctions.createTexture2DFromData(tt1, 2, 2, 4);
+    u8 tt2[] = {255, 0, 255, 255, 0, 255, 0, 255,
+                0, 255, 0, 255, 255, 0, 255, 255};
+    state->testTex2 = state->osFunctions.createTexture2DFromData(tt2, 2, 2, 4);
+
+    cb->debugPrinterStartY = state->windowDimenstion.y - 50;
+    cb->debugPrinterX = 25;
+    cb->debugPrinterY = cb->debugPrinterStartY;
 
     state->camera = Camera();
     state->camera.position = Vector3(13.75, 6, 25);
@@ -307,7 +346,7 @@ static void initializeGameState(GameState* state){
         state->obstacles[i].position = Vector3(state->obstacles[i].xStartPosition, (randomU32() % 10) + 0.5, 0);
         state->obstacles[i].scale = Vector3(1);
         state->obstacles[i].mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
-        state->obstacles[i].mesh.texture = state->osFunctions.createTexture2D("suzanne.texpix", 4);
+        state->obstacles[i].mesh.texture = state->osFunctions.createTexture2DFromFile("suzanne.texpix", 4);
         state->obstacles[i].xVelocity = -((s32)randomU32() % 10) - 15;
         u32 max = -1;
         f32 maxf = max;
@@ -376,9 +415,15 @@ extern "C" void updateGameState(GameState* state){
         }
     }
 
+    addQuadToBuffer(state, Vector2(100, 100), Vector2(200, 400), state->testTex1);
+    addQuadToBuffer(state, Vector2(100, 100), Vector2(250, 150), Vector4(1, 0.5, 0.25, 0.75));
+
     //updateCameraView(&state->camera);
     lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
     renderGame(state);
+
+    addTextToCanvas(state, "Please Work!!", Vector2(400, 300), 5, Vector4(1, 1, 0, 1));
+    addTextToCanvas(state, "Please Work!!", Vector2(410, 310), 5, Vector4(1, 0, 1, 1));
 
     debugPrint(state, "debug mode:%b", state->debugMode);
     debugPrint(state, "delta time: %f4", state->deltaTime);

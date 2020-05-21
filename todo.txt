@@ -1,5 +1,7 @@
 FEATURE:
+clean up debug printing
 canvas renderer
+clean up canvas render shader
 gui system
 writing to files
 mouse picking
