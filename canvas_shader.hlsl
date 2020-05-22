@@ -40,10 +40,8 @@ float4 pixelMain(PixelInput input) : SV_TARGET {
     float4 color = tex.Sample(texSampler, input.uvCoordinates);
 
     float m = input.text;
-    if(m > 0.5){
-        return float4(quadColor.r, quadColor.g, quadColor.b, quadColor.a * color.r);
-    }else{
-        return color * quadColor;
-    }
+    float mm = 1 - m;
+
+    return float4(quadColor.rgb * max(m, color.rgb), quadColor.a * color[(int)(mm * 3)]);
 }
 

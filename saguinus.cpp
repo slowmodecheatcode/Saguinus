@@ -6,6 +6,23 @@ static u32 randomU32(u32 sd = 1){
     return seed;
 }
 
+static Vector2 getTextDimensions(Font* font, const s8* str, f32 scale){
+    const s8* c = str;
+    Vector2 dim(0);
+
+    while(*c != '\0'){
+        u32 charIndex = binarySearch(font->characterCodes, *c, 0, font->totalCharacters, font->missingCharacterCodeIndex);
+        f32 cW = font->width[charIndex];
+        f32 cH = font->height[charIndex];   
+        dim.x += cW * scale + font->kerning[charIndex];
+        f32 ny = cH * scale;
+        dim.y = ny > dim.y ? ny : dim.y;
+        c++;
+    }
+
+    return dim;
+}
+
 static void addQuadToBuffer(GameState* state, Vector2 position, Vector2 scale, Vector2 textureOffset, Vector2 textureScale, Vector4 color, Texture2D texture, bool isText){
     CanvasBuffer* buffer = &state->canvasBuffer;
     u32 idx = buffer->totalGUIItems++;
@@ -48,6 +65,15 @@ static void addTextToCanvas(GameState* state, const s8* str, Vector2 position, f
     }
 }
 
+static void addTextQuad(GameState* state, const s8* str, Vector2 position, Vector4 textColor, Vector4 quadColor, f32 scale, f32 border){
+    Vector2 dim = getTextDimensions(state->currentFont, str, scale);
+    f32 amt = (border * scale);
+    f32 amtX2 = amt * 2;
+    dim = Vector2(dim.x + amtX2, dim.y + amtX2);
+    addQuadToBuffer(state, position, dim, quadColor);
+    addTextToCanvas(state, str, Vector2(position.x + amt, position.y + amt), scale, textColor);
+}
+
 static void debugPrint(GameState* state, s8* text, ...){
     CanvasBuffer* buffer = &state->canvasBuffer;
     va_list argptr;
@@ -55,8 +81,8 @@ static void debugPrint(GameState* state, s8* text, ...){
     s8 buf[MAX_STRING_LENGTH];
     createDebugString(buf, text, argptr);
 
-    addTextToCanvas(state, buf, Vector2(buffer->debugPrinterX, buffer->debugPrinterY), 2, Vector4(0, 0, 0, 1));
-    buffer->debugPrinterY -= 25;
+    addTextQuad(state, buf, Vector2(buffer->debugPrinterX, buffer->debugPrinterY), Vector4(0.7, 0.7, 0.7, 0.7), Vector4(0.3, 0.3, 0.3, 0.7), 2, 1);
+    buffer->debugPrinterY -= 15;
 
     va_end(argptr);
 }
@@ -104,6 +130,32 @@ static void debugBox(GameState* state, Vector3 position, Vector3 scale, Vector4 
     debugLine(state, p2, p6, color, lineWidth);
     debugLine(state, p3, p7, color, lineWidth);
     debugLine(state, p4, p8, color, lineWidth);
+}
+
+static bool guiButton(GameState* state, Vector2 position, const s8* text, f32 scale){
+    static bool action;
+
+    Vector2 mp = state->mousePosition;
+    Vector2 dim = getTextDimensions(state->currentFont, text, scale);
+
+    if(mp.x < position.x || mp.x > position.x + dim.x 
+    || mp.y < position.y || mp.y > position.y + dim.y){
+        addTextQuad(state, text, position, Vector4(1), Vector4(0, 0, 1, 1), scale, 0);
+        action = false;
+    }else{
+        if(state->mouseInputs[MOUSE_BUTTON_LEFT]){
+            addTextQuad(state, text, position, Vector4(1), Vector4(1, 0, 0, 1), scale, 0);
+            action = true;
+        }else if(action && !state->mouseInputs[MOUSE_BUTTON_LEFT]){
+            addTextQuad(state, text, position, Vector4(1), Vector4(1, 0, 0, 1), scale, 0);
+            action = false;
+            return true;
+        }else{
+            addTextQuad(state, text, position, Vector4(1), Vector4(0, 1, 0, 1), scale, 0);
+            action = false;
+        }
+    }
+    return false;
 }
 
 static void addTexturedMeshToBuffer(GameState* state, TexturedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation){
@@ -308,8 +360,8 @@ static void initializeGameState(GameState* state){
                 0, 255, 0, 255, 255, 0, 255, 255};
     state->testTex2 = state->osFunctions.createTexture2DFromData(tt2, 2, 2, 4);
 
-    cb->debugPrinterStartY = state->windowDimenstion.y - 50;
-    cb->debugPrinterX = 25;
+    cb->debugPrinterStartY = state->windowDimenstion.y - 20;
+    cb->debugPrinterX = 15;
     cb->debugPrinterY = cb->debugPrinterStartY;
 
     state->camera = Camera();
@@ -361,7 +413,7 @@ static void initializeGameState(GameState* state){
     state->gameOver = false;
     state->isInitialized = true;
 }
-
+u32 zzz = 0;
 extern "C" void updateGameState(GameState* state){
     if(!state->isInitialized){
         initializeGameState(state);
@@ -415,15 +467,15 @@ extern "C" void updateGameState(GameState* state){
         }
     }
 
-    addQuadToBuffer(state, Vector2(100, 100), Vector2(200, 400), state->testTex1);
-    addQuadToBuffer(state, Vector2(100, 100), Vector2(250, 150), Vector4(1, 0.5, 0.25, 0.75));
-
     //updateCameraView(&state->camera);
     lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
     renderGame(state);
 
-    addTextToCanvas(state, "Please Work!!", Vector2(400, 300), 5, Vector4(1, 1, 0, 1));
-    addTextToCanvas(state, "Please Work!!", Vector2(410, 310), 5, Vector4(1, 0, 1, 1));
+    if(guiButton(state, Vector2(250, 250), "CLICK ME!!!!", 5)){
+        zzz++;
+    }
+    debugPrint(state, "%i", zzz);
+
 
     debugPrint(state, "debug mode:%b", state->debugMode);
     debugPrint(state, "delta time: %f4", state->deltaTime);

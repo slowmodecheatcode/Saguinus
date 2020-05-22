@@ -7,10 +7,6 @@
 #include <xinput.h>
 #include <xaudio2.h>
 
-#define MOUSE_BUTTON_LEFT 0 
-#define MOUSE_BUTTON_MIDDLE 1 
-#define MOUSE_BUTTON_RIGHT 2 
-
 #define GAMEPAD_STICK_MAX 32767
 #define GAMEPAD_STICK_MIN -32768
 #define GAMEPAD_TRIGGER_MAX 255

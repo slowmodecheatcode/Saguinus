@@ -3,6 +3,10 @@
 #include "debug_font.h"
 #include "graphics_utilities.h"
 
+#define MOUSE_BUTTON_LEFT 0 
+#define MOUSE_BUTTON_MIDDLE 1 
+#define MOUSE_BUTTON_RIGHT 2 
+
 #define MAX_STRINGS 256
 #define MAX_STRING_LENGTH 256
 #define MAX_DEBUG_CUBES 256

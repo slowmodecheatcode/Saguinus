@@ -69,6 +69,7 @@ union Matrix4 {
     }
 };
 
+static Vector2 add(Vector2& v1, Vector2& v2);
 static Vector3 add(Vector3& v1, Vector3& v2);
 static Matrix4 multiply(Matrix4& m1, Matrix4& m2);
 static Vector3 scale(Vector3& v1, f32 amt);
@@ -90,6 +91,10 @@ static f32 maximumOf(f32 v1, f32 v2){
 
 static Vector3 operator*(Vector3& v1, f32 amt){
     return scale(v1, amt);
+}
+
+static Vector2 add(Vector2& v1, Vector2& v2){
+    return Vector2(v1.x + v2.x, v1.y + v2.y);
 }
 
 static Vector3 add(Vector3& v1, Vector3& v2){
@@ -122,6 +127,10 @@ static Vector3 cross(Vector3 v1, Vector3 v2){
 
 static Matrix4 operator*(Matrix4& m1, Matrix4& m2){
     return multiply(m1, m2);
+}
+
+static Vector2 operator+(Vector2& v1, Vector2& v2){
+    return add(v1, v2);
 }
 
 static Vector3 operator+(Vector3& v1, Vector3& v2){

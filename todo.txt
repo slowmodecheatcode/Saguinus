@@ -1,7 +1,4 @@
 FEATURE:
-clean up debug printing
-canvas renderer
-clean up canvas render shader
 gui system
 writing to files
 mouse picking
@@ -18,6 +15,7 @@ make text and canvas positioning scale with window
 handle updating resolution on window resize
 
 OPTIMIZATION:
+optimize gui text rendering
 function timing
 use mapping to update constant buffers
 optimize input
