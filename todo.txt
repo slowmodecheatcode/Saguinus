@@ -1,8 +1,6 @@
 FEATURE:
-gui system
-writing to files
-mouse picking
 animated meshes
+mouse picking
 terrain generation and rendering
 instance rendering
 skybox rendering
@@ -15,7 +13,6 @@ make text and canvas positioning scale with window
 handle updating resolution on window resize
 
 OPTIMIZATION:
-optimize gui text rendering
 function timing
 use mapping to update constant buffers
 optimize input

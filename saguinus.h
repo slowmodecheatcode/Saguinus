@@ -187,10 +187,11 @@ struct DebugBuffer {
 
 struct OSFunctions {
     void* (*allocateMemory)(u32 amount);
-    void (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
     void (*updateAudioEmitterDynamics)(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt);
     void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
     void (*setMasterAudioVolume)(f32 v);
+    bool (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
+    bool (*writeToFile)(const s8* fileName, void* data, u32 dataSize);
     Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
     Texture2D (*createTexture2DFromData)(u8* data, u32 width, u32 height, u32 bytesPerPixel);
     TexturedMesh (*createTexturedMesh)(const s8* fileName);
@@ -268,6 +269,7 @@ struct GameState {
     GameMode mode;
 
     bool keyTracking[128];
+    bool mouseButtonTracking[4];
 
     s8* soundBuffer1;
     s8* soundBuffer2;
@@ -280,6 +282,7 @@ struct GameState {
     f32 gravity;
     f32 gameTime;
     u32 score;
+    u32 hiScore;
     u32 totalObstacles;
     s32 mouseScrollDelta;
 

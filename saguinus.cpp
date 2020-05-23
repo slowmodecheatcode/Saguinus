@@ -6,7 +6,7 @@ static u32 randomU32(u32 sd = 1){
     return seed;
 }
 
-static Vector2 getTextDimensions(Font* font, const s8* str, f32 scale){
+static Vector2 getTextDimensions(Font* font, const s8* str, f32 scale, f32 border = 0){
     const s8* c = str;
     Vector2 dim(0);
 
@@ -20,7 +20,8 @@ static Vector2 getTextDimensions(Font* font, const s8* str, f32 scale){
         c++;
     }
 
-    return dim;
+    f32 mul = (border * scale * 2);
+    return Vector2(dim.x + mul, dim.y + mul);
 }
 
 static void addQuadToBuffer(GameState* state, Vector2 position, Vector2 scale, Vector2 textureOffset, Vector2 textureScale, Vector4 color, Texture2D texture, bool isText){
@@ -66,11 +67,15 @@ static void addTextToCanvas(GameState* state, const s8* str, Vector2 position, f
 }
 
 static void addTextQuad(GameState* state, const s8* str, Vector2 position, Vector4 textColor, Vector4 quadColor, f32 scale, f32 border){
-    Vector2 dim = getTextDimensions(state->currentFont, str, scale);
+    Vector2 dim = getTextDimensions(state->currentFont, str, scale, border);
     f32 amt = (border * scale);
-    f32 amtX2 = amt * 2;
-    dim = Vector2(dim.x + amtX2, dim.y + amtX2);
     addQuadToBuffer(state, position, dim, quadColor);
+    addTextToCanvas(state, str, Vector2(position.x + amt, position.y + amt), scale, textColor);
+}
+
+static void addTextQuad(GameState* state, const s8* str, Vector2 position, Vector2 quadDim, Vector4 textColor, Vector4 quadColor, f32 scale, f32 border){
+    f32 amt = (border * scale);
+    addQuadToBuffer(state, position, quadDim, quadColor);
     addTextToCanvas(state, str, Vector2(position.x + amt, position.y + amt), scale, textColor);
 }
 
@@ -132,27 +137,23 @@ static void debugBox(GameState* state, Vector3 position, Vector3 scale, Vector4 
     debugLine(state, p4, p8, color, lineWidth);
 }
 
-static bool guiButton(GameState* state, Vector2 position, const s8* text, f32 scale){
-    static bool action;
-
+static bool guiButton(GameState* state, Vector2 position, const s8* text, f32 scale, f32 buttonBorder = 2){
     Vector2 mp = state->mousePosition;
-    Vector2 dim = getTextDimensions(state->currentFont, text, scale);
+    Vector2 dim = getTextDimensions(state->currentFont, text, scale, buttonBorder);
 
     if(mp.x < position.x || mp.x > position.x + dim.x 
     || mp.y < position.y || mp.y > position.y + dim.y){
-        addTextQuad(state, text, position, Vector4(1), Vector4(0, 0, 1, 1), scale, 0);
-        action = false;
+        addTextQuad(state, text, position, dim, Vector4(1), Vector4(0, 0, 1, 1), scale, buttonBorder);
     }else{
         if(state->mouseInputs[MOUSE_BUTTON_LEFT]){
-            addTextQuad(state, text, position, Vector4(1), Vector4(1, 0, 0, 1), scale, 0);
-            action = true;
-        }else if(action && !state->mouseInputs[MOUSE_BUTTON_LEFT]){
-            addTextQuad(state, text, position, Vector4(1), Vector4(1, 0, 0, 1), scale, 0);
-            action = false;
+            addTextQuad(state, text, position, dim, Vector4(1), Vector4(1, 0, 0, 1), scale, buttonBorder);
+            state->mouseButtonTracking[MOUSE_BUTTON_LEFT]  = true;
+        }else if(state->mouseButtonTracking[MOUSE_BUTTON_LEFT] && !state->mouseInputs[MOUSE_BUTTON_LEFT]){
+            addTextQuad(state, text, position, dim, Vector4(1), Vector4(1, 0, 0, 1), scale, buttonBorder);
+            state->mouseButtonTracking[MOUSE_BUTTON_LEFT]  = false;
             return true;
         }else{
-            addTextQuad(state, text, position, Vector4(1), Vector4(0, 1, 0, 1), scale, 0);
-            action = false;
+            addTextQuad(state, text, position, dim, Vector4(1), Vector4(0, 1, 0, 1), scale, buttonBorder);
         }
     }
     return false;
@@ -282,6 +283,11 @@ static void updateObstacles(GameState* state){
         if(len < 1){
             state->clearColor = Vector4(0, 0, 0, 1);
             state->mode = GameMode::GAME_MODE_OVER;
+
+            if(state->score > state->hiScore){
+                state->hiScore = state->score;
+                state->osFunctions.writeToFile("hiscore", &state->hiScore, sizeof(u32));
+            }
         }
     }
     
@@ -332,6 +338,8 @@ static void renderGame(GameState* state){
     s8 buf[64];
     createDebugString(buf, "Score: %i", state->score);
     addTextToCanvas(state, buf, Vector2(450, 650), 3, Vector4(0, 0, 0, 1));
+    createDebugString(buf, "Hi-Score: %i", state->hiScore);
+    addTextToCanvas(state, buf, Vector2(750, 650), 2, Vector4(0, 0, 0, 1));
 }
 
 static void resetGame(GameState* state){
@@ -410,10 +418,15 @@ static void initializeGameState(GameState* state){
     state->gameTime = 0;
     state->score = 0;
 
+    u32 lll;
+    if(!state->osFunctions.readFileIntoBuffer("hiscore", &state->hiScore, &lll)){
+        state->osFunctions.writeToFile("hiscore", &state->hiScore, sizeof(u32));
+    }
+
     state->gameOver = false;
     state->isInitialized = true;
 }
-u32 zzz = 0;
+
 extern "C" void updateGameState(GameState* state){
     if(!state->isInitialized){
         initializeGameState(state);
@@ -423,41 +436,41 @@ extern "C" void updateGameState(GameState* state){
     InputCodes* c = &state->inputCodes;
     Player* p = &state->player;
 
-    // switch (state->mode) {
-    //     case GameMode::GAME_MODE_DEBUG : {
-    //         updateCameraWithMouse(state);
-    //         updateCameraWithKeyboard(state);
-    //         updateCameraWithGamepad(state);
-    //         renderGame(state);
-    //         break;
-    //     }
-    //     case GameMode::GAME_MODE_PLAYING : {
-    //         updatePlayer(state);
-    //         updateObstacles(state);
+    switch (state->mode) {
+        case GameMode::GAME_MODE_DEBUG : {
+            updateCameraWithMouse(state);
+            updateCameraWithKeyboard(state);
+            updateCameraWithGamepad(state);
+            renderGame(state);
+            break;
+        }
+        case GameMode::GAME_MODE_PLAYING : {
+            updatePlayer(state);
+            updateObstacles(state);
             
-    //         renderGame(state);
-    //         state->gameTime += state->deltaTime;
-    //         state->score = (state->gameTime * 100);
-    //         break;
-    //     }
-    //     case GameMode::GAME_MODE_OVER : {
-    //         addTextToBuffer(state, "GAME OVER", 350, 300, 8, Vector4(1, 0, 0, 1));
-    //         addTextToBuffer(state, "Press R to restart", 350, 250, 4, Vector4(1, 0, 0, 1));
-    //         renderGame(state);
-    //         if(keyPressedOnce(state, c->KEY_R)){
-    //             resetGame(state);
-    //         }
-    //         break;
-    //     }
-    //     case GameMode::GAME_MODE_INTRO : {
-    //         addTextToBuffer(state, "GAME TITLE", 300, 500, 10, Vector4(1, 1, 1, 1));
-    //         addTextToBuffer(state, "Press SPACE to Begin", 300, 450, 6, Vector4(1, 1, 1, 1));
-    //         if(keyPressedOnce(state, c->KEY_SPACE)){
-    //             state->mode = GameMode::GAME_MODE_PLAYING;
-    //         }
-    //         break;
-    //     }
-    // }
+            renderGame(state);
+            state->gameTime += state->deltaTime;
+            state->score = (state->gameTime * 100);
+            break;
+        }
+        case GameMode::GAME_MODE_OVER : {
+            addTextToCanvas(state, "GAME OVER", Vector2(350, 300), 8, Vector4(1, 0, 0, 1));
+            addTextToCanvas(state, "Press R to restart", Vector2(350, 250), 4, Vector4(1, 0, 0, 1));
+            renderGame(state);
+            if(keyPressedOnce(state, c->KEY_R)){
+                resetGame(state);
+            }
+            break;
+        }
+        case GameMode::GAME_MODE_INTRO : {
+            addTextToCanvas(state, "GAME TITLE", Vector2(300, 500), 10, Vector4(1, 1, 1, 1));
+            addTextToCanvas(state, "Press SPACE to Begin", Vector2(300, 450), 6, Vector4(1, 1, 1, 1));
+            if(keyPressedOnce(state, c->KEY_SPACE) || guiButton(state, Vector2(450, 350), "START", 5)){
+                state->mode = GameMode::GAME_MODE_PLAYING;
+            }
+            break;
+        }
+    }
 
     if(keyPressedOnce(state, c->KEY_B)){
         if(state->mode != GameMode::GAME_MODE_DEBUG){
@@ -467,14 +480,9 @@ extern "C" void updateGameState(GameState* state){
         }
     }
 
-    //updateCameraView(&state->camera);
-    lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
+    updateCameraView(&state->camera);
+    //lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
     renderGame(state);
-
-    if(guiButton(state, Vector2(250, 250), "CLICK ME!!!!", 5)){
-        zzz++;
-    }
-    debugPrint(state, "%i", zzz);
 
 
     debugPrint(state, "debug mode:%b", state->debugMode);

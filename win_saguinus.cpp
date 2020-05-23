@@ -17,20 +17,35 @@ static void* allocateMemory(u32 amount){
     return VirtualAlloc(0, amount, MEM_COMMIT, PAGE_READWRITE);
 }
 
-static void readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
+static bool readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
     HANDLE file = CreateFile(fileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
     if(file == INVALID_HANDLE_VALUE){
-        MessageBox(0, "Could not open file", "readFileIntoBuffer", 0);
-        exit(1);
+        return false;
     }        
     DWORD fileSize;
     fileSize = GetFileSize(file, 0);
     bool res = ReadFile(file, data, fileSize, 0, 0);
     if(!res){
         MessageBox(0, "Could not read file", "readFileIntoBuffer", 0);
-        exit(1);
+        return false;
     }
     *fileLength = fileSize;
+    CloseHandle(file);
+    return true;
+}
+
+static bool writeToFile(const s8* fileName, void* data, u32 dataSize){
+    HANDLE file = CreateFile(fileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+
+    DWORD bytesWritten;
+    bool res = WriteFile(file, data, dataSize, &bytesWritten, 0);
+
+    if(!res){
+        MessageBox(0, "Could not write to file", "writeToFile", 0);
+        return false;
+    }
+    CloseHandle(file);
+    return true;
 }
 
 static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPixel){
@@ -839,6 +854,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     gameState->windowDimenstion = Vector2(windowWidth, windowHeight);
     gameState->osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
+    gameState->osFunctions.writeToFile = &writeToFile;
     gameState->osFunctions.createTexture2DFromFile = &createTexture2D;
     gameState->osFunctions.createTexture2DFromData = &createTexture2D;
     gameState->osFunctions.createTexturedMesh = &createTexturedMesh;
