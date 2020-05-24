@@ -455,10 +455,35 @@ static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16*
     mesh.indexCount = totalIndices;
     mesh.indexOffset = indexOffset;
     mesh.indexAddon = totalVertsInBuffer;
-    mesh.position = Vector3(0);
-    mesh.scale = Vector3(1);
     mesh.texture = texturedMeshRenderer.defaultTexture;
 
+    return mesh;
+}
+
+static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
+    AnimatedMesh mesh = {};
+    u32 totalVertices = vertexDataSize >> 6;
+    f32* vptr = (f32*)tempStorageBuffer;
+    f32* dptr = vertexData;
+    for(u32 i = 0; i < totalVertices; i++){
+        for(u32 j = 0; j < 3; j++){
+            *vptr = *dptr;
+            vptr++;
+            dptr++;
+        }
+        for(u32 j = 0; j < 3; j++){
+            *vptr = *dptr;
+            vptr++;
+            dptr++;
+        }
+        for(u32 j = 0; j < 2; j++){
+            *vptr = *dptr;
+            vptr++;
+            dptr++;
+        }
+        dptr += 8;
+    }
+    mesh.mesh = createTexturedMesh(vptr, totalVertices * 32, indexData, indexDataSize);
     return mesh;
 }
 
@@ -868,8 +893,18 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->currentFont = &debugFont;
     initializeKeyCodes(gameState);
 
-    bool spaceDown = false;
-    Texture2D testText = createTexture2D("suzanne.texpix", 4);
+    u32 fl;
+    readFileIntoBuffer("tentacle_text.animesh", tempStorageBuffer, &fl);
+    u8* tsbPtr = tempStorageBuffer;
+    u32 vSize = *(u32*)tsbPtr;
+    tsbPtr += 4;
+    u32 iSize = *(u32*)tsbPtr;
+    tsbPtr += 4;
+    f32* vData = (f32*)tsbPtr;
+    tsbPtr += vSize;
+    u16* iData = (u16*)tsbPtr;
+
+    AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
 
     f32 deltaTime = 0;
     LARGE_INTEGER endTime;
@@ -932,6 +967,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
         
         updateGS(gameState);
+        addTexturedMeshToBuffer(gameState, &tentacle.mesh, Vector3(0), Vector3(1), Quaternion());
 
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState->clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);

@@ -124,13 +124,30 @@ struct Font {
 };
 
 struct TexturedMesh {
-    Quaternion orientation;
-    Vector3 position;
-    Vector3 scale;
     Texture2D texture;
     u32 indexCount;
     u32 indexOffset;
     u32 indexAddon;
+};
+
+struct Bone {
+    Quaternion orientaion;
+    Vector3 position;
+    u32 parentIndex;
+};
+
+struct MeshAnimation {
+    Bone* poses;
+    f32 frameRate;
+    u32 totalBones;
+    u32 totalPoses;
+    u32 totalKeyframes;
+    u32 currentKeyframe;
+};
+
+struct AnimatedMesh {
+    TexturedMesh mesh;
+    MeshAnimation* animation;
 };
 
 struct TexturedMeshBuffer {
@@ -143,18 +160,6 @@ struct TexturedMeshBuffer {
     u32 indexAddons[MAX_TEXTURED_MESHES];
     u32 totalMeshes;
 };
-
-// struct TextBuffer {
-//     s8 strings[MAX_STRINGS][MAX_STRING_LENGTH];
-//     Vector4 colors[MAX_STRINGS];
-//     f32 xPositions[MAX_STRINGS];
-//     f32 yPositions[MAX_STRINGS];
-//     f32 scales[MAX_STRINGS];
-//     f32 debugPrinterX;
-//     f32 debugPrinterY;
-//     f32 debugPrinterStartY;
-//     u32 totalStrings;
-// };
 
 struct CanvasBuffer {
     Vector4 colors[MAX_GUI_ITEMS];
@@ -287,7 +292,6 @@ struct GameState {
     s32 mouseScrollDelta;
 
     bool updateCamera;
-    bool debugMode;
     bool isInitialized;
     bool gameOver;
 } *gameState;

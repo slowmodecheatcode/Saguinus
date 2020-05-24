@@ -178,7 +178,7 @@ static void updateCameraWithMouse(GameState* state){
         f32 xDif = state->mousePosition.x - state->windowDimenstion.x * 0.5;
         f32 yDif = state->mousePosition.y - state->windowDimenstion.y * 0.5;
         rotate(&camera->orientation, camera->up, deltaTime * xDif * camera->mouseSensitivity);
-        rotate(&camera->orientation, camera->right, deltaTime * yDif * camera->mouseSensitivity);
+        rotate(&camera->orientation, camera->right, deltaTime * -yDif * camera->mouseSensitivity);
         state->updateCamera = false;
     }
 }
@@ -329,7 +329,7 @@ static void renderGame(GameState* state){
         Obstacle* o = &state->obstacles[i];
         debugCube(state, o->position, o->scale, o->color);
     }
-    // addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
+    addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
     // addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
     debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
 
@@ -485,6 +485,6 @@ extern "C" void updateGameState(GameState* state){
     renderGame(state);
 
 
-    debugPrint(state, "debug mode:%b", state->debugMode);
+    debugPrint(state, "debug mode:%b", state->mode == GameMode::GAME_MODE_DEBUG);
     debugPrint(state, "delta time: %f4", state->deltaTime);
 }
