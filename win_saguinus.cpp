@@ -460,6 +460,22 @@ static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16*
     return mesh;
 }
 
+static TexturedMesh createTexturedMesh(const s8* fileName){
+    u32 fileSize;
+    readFileIntoBuffer(fileName, tempStorageBuffer, &fileSize);
+    u8* fileData = tempStorageBuffer;
+    u32 vsz = *(u32*)fileData; 
+    fileData += 4;
+    u32 isz = *(u32*)fileData;
+    fileData += 4;
+    f32* vts = (f32*)fileData;
+    fileData += vsz;
+    u16* ids = (u16*)fileData;
+    TexturedMesh m = createTexturedMesh(vts, vsz, ids, isz);
+    m.texture = texturedMeshRenderer.defaultTexture;
+    return m;
+}
+
 static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
     AnimatedMesh mesh = {};
     u32 totalVertices = vertexDataSize >> 6;
@@ -483,24 +499,8 @@ static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16*
         }
         dptr += 8;
     }
-    mesh.mesh = createTexturedMesh(vptr, totalVertices * 32, indexData, indexDataSize);
+    mesh.mesh = createTexturedMesh((f32*)tempStorageBuffer, totalVertices * 32, indexData, indexDataSize);
     return mesh;
-}
-
-static TexturedMesh createTexturedMesh(const s8* fileName){
-    u32 fileSize;
-    readFileIntoBuffer(fileName, tempStorageBuffer, &fileSize);
-    u8* fileData = tempStorageBuffer;
-    u32 vsz = *(u32*)fileData; 
-    fileData += 4;
-    u32 isz = *(u32*)fileData;
-    fileData += 4;
-    f32* vts = (f32*)fileData;
-    fileData += vsz;
-    u16* ids = (u16*)fileData;
-    TexturedMesh m = createTexturedMesh(vts, vsz, ids, isz);
-    m.texture = texturedMeshRenderer.defaultTexture;
-    return m;
 }
 
 static void renderCanvasBuffer(CanvasBuffer* buffer){
@@ -894,7 +894,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     initializeKeyCodes(gameState);
 
     u32 fl;
-    readFileIntoBuffer("tentacle_text.animesh", tempStorageBuffer, &fl);
+    readFileIntoBuffer("tentacle.animesh", tempStorageBuffer, &fl);
     u8* tsbPtr = tempStorageBuffer;
     u32 vSize = *(u32*)tsbPtr;
     tsbPtr += 4;

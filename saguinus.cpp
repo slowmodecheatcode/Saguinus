@@ -375,7 +375,7 @@ static void initializeGameState(GameState* state){
     state->camera = Camera();
     state->camera.position = Vector3(13.75, 6, 25);
     state->camera.orientation = Quaternion();
-    state->camera.moveSpeed = 3;
+    state->camera.moveSpeed = 10;
     state->camera.rotateSpeed = 1;
     state->camera.mouseSensitivity = 0.1;
 
@@ -482,7 +482,7 @@ extern "C" void updateGameState(GameState* state){
 
     updateCameraView(&state->camera);
     //lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
-    renderGame(state);
+    //renderGame(state);
 
 
     debugPrint(state, "debug mode:%b", state->mode == GameMode::GAME_MODE_DEBUG);
