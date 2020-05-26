@@ -713,6 +713,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     checkError(XAudio2Pointer->CreateMasteringVoice(&XAudio2MasterVoice), "Could not create mastering voice");
 
     tempStorageBuffer = (u8*)VirtualAlloc(0, MEGABYTE(32), MEM_COMMIT, PAGE_READWRITE);
+    longTermStorageBuffer = (u8*)VirtualAlloc(0, GIGABYTE(1), MEM_COMMIT, PAGE_READWRITE);
     gameState = (GameState*)VirtualAlloc(0, sizeof(GameState), MEM_COMMIT, PAGE_READWRITE);
 
     WNDCLASS wc = { };
@@ -891,6 +892,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
     gameState->currentFont = &debugFont;
+    gameState->storage.tempMemoryBuffer = tempStorageBuffer;
+    gameState->storage.longTermBufferPointer = longTermStorageBuffer;
     initializeKeyCodes(gameState);
 
     u32 fl;

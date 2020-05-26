@@ -141,7 +141,6 @@ struct MeshAnimation {
     f32 frameRate;
     u32 totalBones;
     u32 totalPoses;
-    u32 totalKeyframes;
     u32 currentKeyframe;
 };
 

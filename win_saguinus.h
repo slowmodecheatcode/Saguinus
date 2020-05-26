@@ -122,6 +122,7 @@ static POINT mousePosition;
 static POINT screenCenter;
 
 static u8* tempStorageBuffer;
+static u8* longTermStorageBuffer;
 
 static WindowsGamepad gamepad1;
 

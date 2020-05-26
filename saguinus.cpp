@@ -385,8 +385,8 @@ static void initializeGameState(GameState* state){
     state->light.position = Vector3(5, 15, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
-    state->storage.tempMemoryBuffer = (u8*)state->osFunctions.allocateMemory(MEGABYTE(32));
-    state->storage.longTermBuffer = (u8*)state->osFunctions.allocateMemory(GIGABYTE(1));
+    // state->storage.tempMemoryBuffer = (u8*)state->osFunctions.allocateMemory(MEGABYTE(32));
+    // state->storage.longTermBuffer = (u8*)state->osFunctions.allocateMemory(GIGABYTE(1));
 
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);
