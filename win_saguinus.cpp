@@ -479,8 +479,14 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
 static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
     AnimatedMesh mesh = {};
     u32 totalVertices = vertexDataSize >> 6;
+
+    mesh.weights = (f32*)allocateLongTermMemory(gameState, sizeof(f32) * totalVertices * 4);
+    mesh.bones = (f32*)allocateLongTermMemory(gameState, sizeof(f32) * totalVertices * 4);
+
     f32* vptr = (f32*)tempStorageBuffer;
     f32* dptr = vertexData;
+    f32* wptr = mesh.weights;
+    f32* bptr = mesh.bones;
     for(u32 i = 0; i < totalVertices; i++){
         for(u32 j = 0; j < 3; j++){
             *vptr = *dptr;
@@ -497,10 +503,63 @@ static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16*
             vptr++;
             dptr++;
         }
-        dptr += 8;
+        for(u32 j = 0; j < 4; j++){
+            *wptr = *dptr;
+            wptr++;
+            dptr++;
+        }
+        for(u32 j = 0; j < 4; j++){
+            *bptr = *dptr;
+            bptr++;
+            dptr++;
+        }
     }
     mesh.mesh = createTexturedMesh((f32*)tempStorageBuffer, totalVertices * 32, indexData, indexDataSize);
+    mesh.totalVertices = totalVertices;
+
     return mesh;
+}
+
+static MeshAnimation createMeshAnimation(s8* fileName){
+    MeshAnimation anim = {};
+    u32 fl;
+    readFileIntoBuffer(fileName, tempStorageBuffer, &fl);
+    u8* tsbPtr = tempStorageBuffer;
+    u32 totalBones = *(u32*)tsbPtr;
+    tsbPtr += 4;
+    u32 totalPoses = *(u32*)tsbPtr;
+    tsbPtr += 4;
+
+    u32 keyframesSize = totalPoses * sizeof(u32);
+    u32 posesSize = totalBones * totalPoses * sizeof(Bone);
+    u32 ibtSize = totalBones * sizeof(Matrix4);
+    u32 totalSize = keyframesSize + posesSize + ibtSize;
+
+    u8* wptr = allocateLongTermMemory(gameState, totalSize);
+    anim.keyframes = (u32*)wptr;
+    wptr += keyframesSize;
+    anim.poses = (Bone*)wptr;
+    wptr += posesSize;
+    anim.inverseBindTransforms = (Matrix4*)wptr;
+
+    u32* kf = anim.keyframes;
+    for(u32 i = 0; i < totalPoses; i++){
+        f32 f = *(f32*)tsbPtr;
+        *kf = (u32)f;
+        kf++;
+        tsbPtr += 4;
+    }
+
+    Matrix4* ibt = anim.inverseBindTransforms;
+    for(u32 i = 0; i < totalBones; i++){
+        *ibt = *(Matrix4*)tsbPtr;
+        ibt++;
+        tsbPtr += sizeof(Matrix4);
+    }
+    
+
+
+    return anim;
 }
 
 static void renderCanvasBuffer(CanvasBuffer* buffer){
@@ -908,6 +967,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     u16* iData = (u16*)tsbPtr;
 
     AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
+
+    MeshAnimation ma = createMeshAnimation("tentacle.animdat");
 
     f32 deltaTime = 0;
     LARGE_INTEGER endTime;

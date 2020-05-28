@@ -6,6 +6,13 @@ static u32 randomU32(u32 sd = 1){
     return seed;
 }
 
+static u8* allocateLongTermMemory(GameState* state, u32 amount){
+    u8* ptr = state->storage.longTermBufferPointer;
+    state->storage.longTermBufferStorageTaken += amount;
+    state->storage.longTermBufferPointer += amount;
+    return ptr;
+}
+
 static Vector2 getTextDimensions(Font* font, const s8* str, f32 scale, f32 border = 0){
     const s8* c = str;
     Vector2 dim(0);
@@ -385,8 +392,7 @@ static void initializeGameState(GameState* state){
     state->light.position = Vector3(5, 15, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
-    // state->storage.tempMemoryBuffer = (u8*)state->osFunctions.allocateMemory(MEGABYTE(32));
-    // state->storage.longTermBuffer = (u8*)state->osFunctions.allocateMemory(GIGABYTE(1));
+    state->storage.longTermBufferPointer = state->storage.tempMemoryBuffer;
 
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);

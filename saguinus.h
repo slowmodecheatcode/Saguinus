@@ -138,6 +138,8 @@ struct Bone {
 
 struct MeshAnimation {
     Bone* poses;
+    Matrix4* inverseBindTransforms;
+    u32* keyframes;
     f32 frameRate;
     u32 totalBones;
     u32 totalPoses;
@@ -147,6 +149,9 @@ struct MeshAnimation {
 struct AnimatedMesh {
     TexturedMesh mesh;
     MeshAnimation* animation;
+    f32* weights;
+    f32* bones;
+    u32 totalVertices;
 };
 
 struct TexturedMeshBuffer {
@@ -206,6 +211,7 @@ struct MemoryStorage {
     u8* tempMemoryBuffer;
     u8* longTermBuffer;
     u8* longTermBufferPointer;
+    u64 longTermBufferStorageTaken;
 };
 
 struct Gamepad {
