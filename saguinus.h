@@ -141,9 +141,12 @@ struct MeshAnimation {
     Matrix4* inverseBindTransforms;
     u32* keyframes;
     f32 frameRate;
+    f32 currentPoseElapsed;
+    f32 currentPoseTime;
     u32 totalBones;
     u32 totalPoses;
     u32 currentKeyframe;
+    u32 nextKeyframe;
 };
 
 struct AnimatedMesh {

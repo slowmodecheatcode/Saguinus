@@ -557,9 +557,19 @@ static MeshAnimation createMeshAnimation(s8* fileName){
         tsbPtr += sizeof(Matrix4);
     }
     
-
+    Bone* bp = anim.poses;
+    u32 totalBonesInAnimation = totalBones * totalPoses;
+    for(u32 i = 0; i < totalBonesInAnimation; i++){
+        *bp = *(Bone*)tsbPtr;
+        bp++;
+        tsbPtr += sizeof(Bone);
+    }
 
     return anim;
+}
+
+static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
+
 }
 
 static void renderCanvasBuffer(CanvasBuffer* buffer){

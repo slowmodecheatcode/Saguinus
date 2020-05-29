@@ -54,6 +54,7 @@ union Quaternion {
     };
 
     Quaternion() : x(0), y(0), z(0), w(1){}
+    Quaternion(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w){}
 };
 
 union Matrix4 {
@@ -109,6 +110,13 @@ static Vector3 scale(Vector3& v1, f32 amt){
     return Vector3(v1.x * amt, v1.y * amt, v1.z * amt);
 }
 
+static Vector3 linearInterpolation(Vector3 v1, Vector3 v2, f32 t){
+    f32 x = v1.x + (v2.x - v1.x);
+    f32 y = v1.y + (v2.y - v1.y);
+    f32 z = v1.z + (v2.z - v1.z);
+    return Vector3(x, y, z);
+}
+
 static f32 dot(Vector3 v1, Vector3 v2){
     return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
@@ -123,6 +131,23 @@ static Vector3 cross(Vector3 v1, Vector3 v2){
    return Vector3(v1.y * v2.z - v1.z * v2.y,
                   v1.z * v2.x - v1.x * v2.z,
                   v1.x * v2.y - v1.y * v2.x);
+}
+
+
+static f32 dot(Quaternion q1, Quaternion q2){
+    return q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+}
+
+static Quaternion add(Quaternion& q1, Quaternion& q2){
+    return Quaternion(q1.x + q2.x, q1.y + q2.y, q1.z + q2.z, q1.w + q2.w);
+}
+
+static Quaternion sub(Quaternion& q1, Quaternion& q2){
+    return Quaternion(q1.x - q2.x, q1.y - q2.y, q1.z - q2.z, q1.w - q2.w);
+}
+
+static Quaternion scale(Quaternion& q, f32 amt){
+    return Quaternion(q.x * amt, q.y * amt, q.z * amt, q.w * amt);
 }
 
 static Matrix4 operator*(Matrix4& m1, Matrix4& m2){
@@ -155,6 +180,22 @@ static Vector3 operator-(Vector3& v1, Vector3& v2){
 
 static Vector3 operator-(Vector3& v){
     return Vector3(-v.x, -v.y, -v.z);
+}
+
+static Quaternion operator+(Quaternion& q1, Quaternion& q2){
+    return add(q1, q2);
+}
+
+static Quaternion operator-(Quaternion& q){
+    return Quaternion(-q.x, -q.y, -q.z, -q.w);
+}
+
+static Quaternion operator-(Quaternion& q1, Quaternion& q2){
+    return sub(q1, q2);
+}
+
+static Quaternion operator*(Quaternion& q, f32 amt){
+    return scale(q, amt);
 }
 
 static f32 length(Vector3 v){
@@ -356,6 +397,34 @@ static Quaternion multiply(Quaternion& q1, Quaternion& q2){
     q.z = q1.x * q2.y - q1.y * q2.x + q1.z * q2.w + q1.w * q2.z;
     q.w = -q1.x * q2.x - q1.y * q2.y - q1.z * q2.z + q1.w * q2.w;
     return q;
+}
+
+static Quaternion slerp(Quaternion q1, Quaternion q2, f32 t){
+    normalize(&q1);
+    normalize(&q2);
+
+    f32 dp = dot(q1, q2);
+
+    if (dp < 0.0f) {
+        q1 = -q1;
+        dp = -dp;
+    }
+
+    if (dp > 0.9995) {
+        Quaternion result = q1 + (q2 - q1) * t;
+        normalize(&result);
+        return result;
+    }
+
+    f32 theta_0 = acos(dp);        
+    f32 theta = theta_0 * t;          
+    f32 sin_theta = sin(theta);     
+    f32 sin_theta_0 = sin(theta_0); 
+
+    f32 s0 = cos(theta) - dp * sin_theta / sin_theta_0;  
+    f32 s1 = sin_theta / sin_theta_0;
+
+    return (q1 * s0) + (q2 * s1);
 }
 
 static void rotate(Quaternion* q, Vector3 axis, f32 angle){
