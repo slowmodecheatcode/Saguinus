@@ -128,6 +128,8 @@ struct TexturedMesh {
     u32 indexCount;
     u32 indexOffset;
     u32 indexAddon;
+    u32 vertexBufferOffset;
+    u32 totalVertices;
 };
 
 struct Bone {
@@ -152,6 +154,8 @@ struct MeshAnimation {
 struct AnimatedMesh {
     TexturedMesh mesh;
     MeshAnimation* animation;
+    f32* positions;
+    f32* normals;
     f32* weights;
     f32* bones;
     u32 totalVertices;

@@ -42,6 +42,7 @@ union Vector4 {
     Vector4(){}
     Vector4(f32 v) : x(v), y(v), z(v), w(v){}
     Vector4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w){}
+    Vector4(Vector3 v, f32 w) : x(v.x), y(v.y), z(v.z), w(w){}
 };
 
 union Quaternion {
@@ -110,10 +111,22 @@ static Vector3 scale(Vector3& v1, f32 amt){
     return Vector3(v1.x * amt, v1.y * amt, v1.z * amt);
 }
 
+static Vector4 add(Vector4& v1, Vector4& v2){
+    return Vector4(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w);
+}
+
+static Vector4 sub(Vector4& v1, Vector4& v2){
+    return Vector4(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z, v1.w - v2.w);
+}
+
+static Vector4 scale(Vector4& v1, f32 amt){
+    return Vector4(v1.x * amt, v1.y * amt, v1.z * amt, v1.w * amt);
+}
+
 static Vector3 linearInterpolation(Vector3 v1, Vector3 v2, f32 t){
-    f32 x = v1.x + (v2.x - v1.x);
-    f32 y = v1.y + (v2.y - v1.y);
-    f32 z = v1.z + (v2.z - v1.z);
+    f32 x = v1.x + (v2.x - v1.x) * t;
+    f32 y = v1.y + (v2.y - v1.y) * t;
+    f32 z = v1.z + (v2.z - v1.z) * t;
     return Vector3(x, y, z);
 }
 
@@ -162,6 +175,10 @@ static Vector3 operator+(Vector3& v1, Vector3& v2){
     return add(v1, v2);
 }
 
+static Vector4 operator+(Vector4& v1, Vector4& v2){
+    return add(v1, v2);
+}
+
 static void operator+=(Vector3& v1, Vector3& v2){
     v1.x += v2.x;
     v1.y += v2.y;
@@ -174,12 +191,34 @@ static void operator-=(Vector3& v1, Vector3& v2){
     v1.z -= v2.z;
 }
 
+static void operator+=(Vector4& v1, Vector4& v2){
+    v1.x += v2.x;
+    v1.y += v2.y;
+    v1.z += v2.z;
+    v1.w += v2.w;
+}
+
+static void operator-=(Vector4& v1, Vector4& v2){
+    v1.x -= v2.x;
+    v1.y -= v2.y;
+    v1.z -= v2.z;
+    v1.w -= v2.w;
+}
+
 static Vector3 operator-(Vector3& v1, Vector3& v2){
     return sub(v1, v2);
 }
 
 static Vector3 operator-(Vector3& v){
     return Vector3(-v.x, -v.y, -v.z);
+}
+
+static Vector4 operator-(Vector4& v1, Vector4& v2){
+    return sub(v1, v2);
+}
+
+static Vector4 operator-(Vector4& v){
+    return Vector4(-v.x, -v.y, -v.z, -v.w);
 }
 
 static Quaternion operator+(Quaternion& q1, Quaternion& q2){
@@ -236,6 +275,25 @@ static Matrix4 createIdentityMatrix(){
     m.m[8] = 0; m.m[9] = 0; m.m[10] = 1; m.m[11] = 0;
     m.m[12] = 0; m.m[13] = 0; m.m[14] = 0; m.m[15] = 1;
     return m;
+}
+
+static Vector4 multiply(Matrix4* m, Vector4 v){
+    Vector4 r;
+
+    r.x = m->m2[0][0] * v.x + m->m2[1][0] * v.y * m->m2[2][0] * v.z + m->m2[3][0] * v.w;
+    r.y = m->m2[0][1] * v.x + m->m2[1][1] * v.y * m->m2[2][1] * v.z + m->m2[3][1] * v.w;
+    r.z = m->m2[0][2] * v.x + m->m2[1][2] * v.y * m->m2[2][2] * v.z + m->m2[3][2] * v.w;
+    r.w = m->m2[0][3] * v.x + m->m2[1][3] * v.y * m->m2[2][3] * v.z + m->m2[3][3] * v.w;
+
+    return r;
+}
+
+static Vector4 operator*(Matrix4& m, Vector4& v){
+    return multiply(&m, v);
+}
+
+static Vector4 operator*(Vector4& v, f32 amt){
+    return scale(v, amt);
 }
 
 static Matrix4 multiply(Matrix4& m1, Matrix4& m2){

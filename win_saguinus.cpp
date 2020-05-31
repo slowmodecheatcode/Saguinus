@@ -138,6 +138,8 @@ static void initializeTexturedMeshRenderer(){
     D3D11_BUFFER_DESC bufferDesc = {};
     bufferDesc.ByteWidth = MEGABYTE(32);
     bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
 
     D3D11_SUBRESOURCE_DATA bufferData = {};
     bufferData.pSysMem = tempStorageBuffer;
@@ -158,6 +160,8 @@ static void initializeTexturedMeshRenderer(){
 
     bufferDesc.ByteWidth = sizeof(texturedMeshRenderer.vertexConstants);
     bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bufferDesc.CPUAccessFlags = 0;
+    bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 
     D3D11_SUBRESOURCE_DATA constBufData = {};
     constBufData.pSysMem = &texturedMeshRenderer.vertexConstants;
@@ -427,35 +431,41 @@ static void renderDebugBuffer(DebugBuffer* buffer, Camera* camera){
 static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
     u32 totalIndices = indexDataSize / sizeof(u16);
     u32 totalVertsInBuffer = texturedMeshRenderer.vertexDataUsed / (sizeof(f32) * 8);
+    u32 indexOffset = texturedMeshRenderer.indexDataUsed / sizeof(u16);
+
+    D3D11_MAPPED_SUBRESOURCE vertData;
+    D3D11_MAPPED_SUBRESOURCE indData;                   
+    d3d11Context->Map(texturedMeshRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
+    d3d11Context->Map(texturedMeshRenderer.indexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &indData);
+    f32* vdat = (f32*)vertData.pData;
+    u16* idat = (u16*)indData.pData;
+    vdat += texturedMeshRenderer.vertexDataUsed / sizeof(f32);
+    idat += indexOffset;
+
+    u32 totalFloats = vertexDataSize / sizeof(f32);
+    for(u32 i = 0; i < totalFloats; i++){
+        vdat[i] = vertexData[i];
+    }
+
+    for(u32 i = 0; i < totalIndices; i++){
+        idat[i] = indexData[i];
+    }
+
+    d3d11Context->Unmap(texturedMeshRenderer.vertexBuffer, 0);
+    d3d11Context->Unmap(texturedMeshRenderer.indexBuffer, 0);
+
 
     TexturedMesh mesh;
-    D3D11_BOX box;
-    box.left = texturedMeshRenderer.vertexDataUsed;
-    box.top = 0;
-    box.front = 0;
-    box.right = box.left + vertexDataSize;
-    box.bottom = 1;
-    box.back = 1;
-    d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexBuffer, 0, &box, vertexData, 0, 0);
-
-    box.left = texturedMeshRenderer.indexDataUsed;
-    box.top = 0;
-    box.front = 0;
-    box.right = box.left + indexDataSize;
-    box.bottom = 1;
-    box.back = 1;
-    d3d11Context->UpdateSubresource(texturedMeshRenderer.indexBuffer, 0, &box, indexData, 0, 0);
-
-    u32 indexOffset = texturedMeshRenderer.indexDataUsed / sizeof(u16);
-    mesh.indexCount = totalIndices;
-    mesh.indexOffset = indexOffset;
-    texturedMeshRenderer.indexDataUsed += indexDataSize;
-    texturedMeshRenderer.vertexDataUsed += vertexDataSize;
-
+    
     mesh.indexCount = totalIndices;
     mesh.indexOffset = indexOffset;
     mesh.indexAddon = totalVertsInBuffer;
     mesh.texture = texturedMeshRenderer.defaultTexture;
+    mesh.totalVertices = vertexDataSize / (sizeof(f32) * 8);
+    mesh.vertexBufferOffset = texturedMeshRenderer.vertexDataUsed;
+
+    texturedMeshRenderer.indexDataUsed += indexDataSize;
+    texturedMeshRenderer.vertexDataUsed += vertexDataSize;
 
     return mesh;
 }
@@ -480,21 +490,29 @@ static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16*
     AnimatedMesh mesh = {};
     u32 totalVertices = vertexDataSize >> 6;
 
+    mesh.positions = (f32*)allocateLongTermMemory(gameState, sizeof(f32) * totalVertices * 3);
+    mesh.normals = (f32*)allocateLongTermMemory(gameState, sizeof(f32) * totalVertices * 3);
     mesh.weights = (f32*)allocateLongTermMemory(gameState, sizeof(f32) * totalVertices * 4);
     mesh.bones = (f32*)allocateLongTermMemory(gameState, sizeof(f32) * totalVertices * 4);
 
     f32* vptr = (f32*)tempStorageBuffer;
     f32* dptr = vertexData;
+    f32* pptr = mesh.positions;
+    f32* nptr = mesh.normals;
     f32* wptr = mesh.weights;
     f32* bptr = mesh.bones;
     for(u32 i = 0; i < totalVertices; i++){
         for(u32 j = 0; j < 3; j++){
             *vptr = *dptr;
+            *pptr = *dptr;
+            pptr++;
             vptr++;
             dptr++;
         }
         for(u32 j = 0; j < 3; j++){
             *vptr = *dptr;
+            *nptr = *dptr;
+            nptr++;
             vptr++;
             dptr++;
         }
@@ -565,7 +583,75 @@ static MeshAnimation createMeshAnimation(s8* fileName){
         tsbPtr += sizeof(Bone);
     }
 
+    anim.currentKeyframe = 0;
+    anim.nextKeyframe = 1;
+    anim.totalBones = totalBones;
+    anim.totalPoses = totalPoses;
+    anim.frameRate = 24;
+    anim.currentPoseTime = (anim.keyframes[1] - anim.keyframes[0]) / anim.frameRate;
+
     return anim;
+}
+
+static void renderAnimatedMesh(AnimatedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation){
+    MeshAnimation* anim = mesh->animation;
+
+    f32 dt = anim->currentPoseElapsed / anim->currentPoseTime;
+    u32 cfi = anim->currentKeyframe * anim->totalBones;
+    u32 nfi = anim->nextKeyframe * anim->totalBones;
+
+    Matrix4 poseMatrices[32];
+    Matrix4 parentMatrices[32];
+    Quaternion brot = slerp(anim->poses[cfi].orientaion, anim->poses[nfi].orientaion, dt);
+    Vector3 bpos = linearInterpolation(anim->poses[cfi].position, anim->poses[nfi].position, dt);
+    Matrix4 bmat = buildModelMatrix(bpos, Vector3(1), brot);
+    parentMatrices[0] = bmat;
+    poseMatrices[0] = bmat * anim->inverseBindTransforms[0];
+    for(u32 i = 1; i < anim->totalBones; i++){
+        brot = slerp(anim->poses[cfi + i].orientaion, anim->poses[nfi + i].orientaion, dt);
+        bpos = linearInterpolation(anim->poses[cfi + i].position, anim->poses[nfi + i].position, dt);
+        bmat = buildModelMatrix(bpos, Vector3(1), brot);
+        bmat = parentMatrices[(int)anim->poses[cfi + i].parentIndex] * bmat;
+        parentMatrices[i] = bmat;
+        poseMatrices[i] = bmat * anim->inverseBindTransforms[i];
+    }
+
+    D3D11_MAPPED_SUBRESOURCE vertData;            
+    d3d11Context->Map(texturedMeshRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
+    f32* vdat = (f32*)vertData.pData;
+    vdat += mesh->mesh.vertexBufferOffset / sizeof(f32);
+
+    for(u32 i = 0; i < mesh->totalVertices; i++){
+        Vector3 vpos = ((Vector3*)mesh->positions)[i];
+        Vector3 vnrm = ((Vector3*)mesh->normals)[i];
+        Vector4 weight = ((Vector4*)mesh->weights)[i];
+        Vector4 bones = ((Vector4*)mesh->bones)[i];
+
+        Vector4 p4(vpos, 1.0);
+        Vector4 n4(vnrm, 0.0);
+
+        Vector4 npos = (poseMatrices[(int)bones.x] * p4) * weight.x;
+        npos +=        (poseMatrices[(int)bones.y] * p4) * weight.y;
+        npos +=        (poseMatrices[(int)bones.z] * p4) * weight.z;
+        npos +=        (poseMatrices[(int)bones.w] * p4) * weight.w;
+
+        Vector4 nnrm = (poseMatrices[(int)bones.x] * n4) * weight.x;
+        nnrm +=        (poseMatrices[(int)bones.y] * n4) * weight.y;
+        nnrm +=        (poseMatrices[(int)bones.z] * n4) * weight.z;
+        nnrm +=        (poseMatrices[(int)bones.w] * n4) * weight.w;
+
+        vdat[0] = npos.x;
+        vdat[1] = npos.y;
+        vdat[2] = npos.z;
+        vdat[3] = nnrm.x;
+        vdat[4] = nnrm.y;
+        vdat[5] = nnrm.z;
+        vdat += 8;
+    }
+
+    d3d11Context->Unmap(texturedMeshRenderer.vertexBuffer, 0);
+
+    addTexturedMeshToBuffer(gameState, &mesh->mesh, position, scale, orientation);
 }
 
 static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
@@ -977,8 +1063,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     u16* iData = (u16*)tsbPtr;
 
     AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
-
     MeshAnimation ma = createMeshAnimation("tentacle.animdat");
+    tentacle.animation = &ma;
 
     f32 deltaTime = 0;
     LARGE_INTEGER endTime;
@@ -1041,7 +1127,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
         
         updateGS(gameState);
-        addTexturedMeshToBuffer(gameState, &tentacle.mesh, Vector3(0), Vector3(1), Quaternion());
+        renderAnimatedMesh(&tentacle, Vector3(0), Vector3(1), Quaternion());
+        //addTexturedMeshToBuffer(gameState, &tentacle.mesh, Vector3(0), Vector3(1), Quaternion());
 
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState->clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);

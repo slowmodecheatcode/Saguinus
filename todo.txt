@@ -19,5 +19,8 @@ optimize input
 replace math.h's trig functions
 look into getting rid of padding variables in constant buffer structs
 
+MISC:
+organize mathematics.h
+
 
 
