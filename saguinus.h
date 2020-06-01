@@ -135,7 +135,7 @@ struct TexturedMesh {
 struct Bone {
     Quaternion orientaion;
     Vector3 position;
-    u32 parentIndex;
+    f32 parentIndex;
 };
 
 struct MeshAnimation {

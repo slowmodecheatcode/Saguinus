@@ -280,10 +280,10 @@ static Matrix4 createIdentityMatrix(){
 static Vector4 multiply(Matrix4* m, Vector4 v){
     Vector4 r;
 
-    r.x = m->m2[0][0] * v.x + m->m2[1][0] * v.y * m->m2[2][0] * v.z + m->m2[3][0] * v.w;
-    r.y = m->m2[0][1] * v.x + m->m2[1][1] * v.y * m->m2[2][1] * v.z + m->m2[3][1] * v.w;
-    r.z = m->m2[0][2] * v.x + m->m2[1][2] * v.y * m->m2[2][2] * v.z + m->m2[3][2] * v.w;
-    r.w = m->m2[0][3] * v.x + m->m2[1][3] * v.y * m->m2[2][3] * v.z + m->m2[3][3] * v.w;
+    r.x = m->m2[0][0] * v.x + m->m2[1][0] * v.y + m->m2[2][0] * v.z + m->m2[3][0] * v.w;
+    r.y = m->m2[0][1] * v.x + m->m2[1][1] * v.y + m->m2[2][1] * v.z + m->m2[3][1] * v.w;
+    r.z = m->m2[0][2] * v.x + m->m2[1][2] * v.y + m->m2[2][2] * v.z + m->m2[3][2] * v.w;
+    r.w = m->m2[0][3] * v.x + m->m2[1][3] * v.y + m->m2[2][3] * v.z + m->m2[3][3] * v.w;
 
     return r;
 }

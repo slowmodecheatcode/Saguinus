@@ -655,7 +655,22 @@ static void renderAnimatedMesh(AnimatedMesh* mesh, Vector3 position, Vector3 sca
 }
 
 static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
-
+    mesh->currentPoseElapsed += deltaTime;
+    if(mesh->currentPoseElapsed > mesh->currentPoseTime){
+        u32 ckf = mesh->currentKeyframe;
+        u32 nkf = mesh->nextKeyframe;
+        if(nkf < mesh->totalPoses - 1){
+            ckf++;
+            nkf++;
+        }else{
+            ckf = 0;
+            nkf = 1;
+        }
+        mesh->currentPoseElapsed -= mesh->currentPoseTime;
+        mesh->currentPoseTime = (mesh->keyframes[nkf] - mesh->keyframes[ckf]) / mesh->frameRate;
+        mesh->currentKeyframe = ckf;
+        mesh->nextKeyframe = nkf;
+    }
 }
 
 static void renderCanvasBuffer(CanvasBuffer* buffer){
@@ -1052,7 +1067,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     initializeKeyCodes(gameState);
 
     u32 fl;
-    readFileIntoBuffer("tentacle.animesh", tempStorageBuffer, &fl);
+    readFileIntoBuffer("tentacle3.animesh", tempStorageBuffer, &fl);
     u8* tsbPtr = tempStorageBuffer;
     u32 vSize = *(u32*)tsbPtr;
     tsbPtr += 4;
@@ -1063,7 +1078,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     u16* iData = (u16*)tsbPtr;
 
     AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
-    MeshAnimation ma = createMeshAnimation("tentacle.animdat");
+    MeshAnimation ma = createMeshAnimation("tentacle3.animdat");
     tentacle.animation = &ma;
 
     f32 deltaTime = 0;
@@ -1127,6 +1142,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
         
         updateGS(gameState);
+        updateMeshAnimation(tentacle.animation, gameState->deltaTime);
         renderAnimatedMesh(&tentacle, Vector3(0), Vector3(1), Quaternion());
         //addTexturedMeshToBuffer(gameState, &tentacle.mesh, Vector3(0), Vector3(1), Quaternion());
 
