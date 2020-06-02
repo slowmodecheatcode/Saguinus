@@ -206,11 +206,14 @@ struct OSFunctions {
     void (*updateAudioEmitterDynamics)(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt);
     void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
     void (*setMasterAudioVolume)(f32 v);
+    void (*renderAnimatedMesh)(AnimatedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation);
     bool (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
     bool (*writeToFile)(const s8* fileName, void* data, u32 dataSize);
     Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
     Texture2D (*createTexture2DFromData)(u8* data, u32 width, u32 height, u32 bytesPerPixel);
     TexturedMesh (*createTexturedMesh)(const s8* fileName);
+    AnimatedMesh (*createAnimatedMesh)(const s8* fileName);
+    MeshAnimation (*createMeshAnimation)(const s8* fileName);
     AudioEmitter (*createAudioEmitter)();
 };
 
@@ -245,7 +248,9 @@ struct Player {
     Vector3 position;
     Vector3 scale;
     Quaternion orientation;
-    TexturedMesh mesh;
+    AnimatedMesh mesh;
+    MeshAnimation squatAnimation;
+    MeshAnimation runAnimation;
     f32 yVelocity;
     bool isJumping;
 };

@@ -538,7 +538,24 @@ static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16*
     return mesh;
 }
 
-static MeshAnimation createMeshAnimation(s8* fileName){
+static AnimatedMesh createAnimatedMesh(const s8* fileName){
+    u32 fl;
+    readFileIntoBuffer(fileName, tempStorageBuffer, &fl);
+    u8* tsbPtr = tempStorageBuffer;
+    u32 vSize = *(u32*)tsbPtr;
+    tsbPtr += 4;
+    u32 iSize = *(u32*)tsbPtr;
+    tsbPtr += 4;
+    f32* vData = (f32*)tsbPtr;
+    tsbPtr += vSize;
+    u16* iData = (u16*)tsbPtr;
+
+    AnimatedMesh mesh = createAnimatedMesh(vData, vSize, iData, iSize);
+
+    return mesh;
+}
+
+static MeshAnimation createMeshAnimation(const s8* fileName){
     MeshAnimation anim = {};
     u32 fl;
     readFileIntoBuffer(fileName, tempStorageBuffer, &fl);
@@ -652,25 +669,6 @@ static void renderAnimatedMesh(AnimatedMesh* mesh, Vector3 position, Vector3 sca
     d3d11Context->Unmap(texturedMeshRenderer.vertexBuffer, 0);
 
     addTexturedMeshToBuffer(gameState, &mesh->mesh, position, scale, orientation);
-}
-
-static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
-    mesh->currentPoseElapsed += deltaTime;
-    if(mesh->currentPoseElapsed > mesh->currentPoseTime){
-        u32 ckf = mesh->currentKeyframe;
-        u32 nkf = mesh->nextKeyframe;
-        if(nkf < mesh->totalPoses - 1){
-            ckf++;
-            nkf++;
-        }else{
-            ckf = 0;
-            nkf = 1;
-        }
-        mesh->currentPoseElapsed -= mesh->currentPoseTime;
-        mesh->currentPoseTime = (mesh->keyframes[nkf] - mesh->keyframes[ckf]) / mesh->frameRate;
-        mesh->currentKeyframe = ckf;
-        mesh->nextKeyframe = nkf;
-    }
 }
 
 static void renderCanvasBuffer(CanvasBuffer* buffer){
@@ -1051,6 +1049,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->windowDimenstion = Vector2(windowWidth, windowHeight);
     gameState->osFunctions.readFileIntoBuffer = &readFileIntoBuffer;
     gameState->osFunctions.writeToFile = &writeToFile;
+    gameState->osFunctions.createAnimatedMesh = &createAnimatedMesh;
     gameState->osFunctions.createTexture2DFromFile = &createTexture2D;
     gameState->osFunctions.createTexture2DFromData = &createTexture2D;
     gameState->osFunctions.createTexturedMesh = &createTexturedMesh;
@@ -1059,6 +1058,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.updateAudioEmitterDynamics = &updateAudioEmitterDynamics;
     gameState->osFunctions.playAudioEmitter = &playAudioEmitter;
     gameState->osFunctions.setMasterAudioVolume = &setMasterAudioVolume;
+    gameState->osFunctions.createMeshAnimation = &createMeshAnimation;
+    gameState->osFunctions.renderAnimatedMesh = &renderAnimatedMesh;
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
     gameState->currentFont = &debugFont;
@@ -1066,20 +1067,20 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->storage.longTermBufferPointer = longTermStorageBuffer;
     initializeKeyCodes(gameState);
 
-    u32 fl;
-    readFileIntoBuffer("tentacle3.animesh", tempStorageBuffer, &fl);
-    u8* tsbPtr = tempStorageBuffer;
-    u32 vSize = *(u32*)tsbPtr;
-    tsbPtr += 4;
-    u32 iSize = *(u32*)tsbPtr;
-    tsbPtr += 4;
-    f32* vData = (f32*)tsbPtr;
-    tsbPtr += vSize;
-    u16* iData = (u16*)tsbPtr;
+    // u32 fl;
+    // readFileIntoBuffer("character.animesh", tempStorageBuffer, &fl);
+    // u8* tsbPtr = tempStorageBuffer;
+    // u32 vSize = *(u32*)tsbPtr;
+    // tsbPtr += 4;
+    // u32 iSize = *(u32*)tsbPtr;
+    // tsbPtr += 4;
+    // f32* vData = (f32*)tsbPtr;
+    // tsbPtr += vSize;
+    // u16* iData = (u16*)tsbPtr;
 
-    AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
-    MeshAnimation ma = createMeshAnimation("tentacle3.animdat");
-    tentacle.animation = &ma;
+    // AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
+    // MeshAnimation ma = createMeshAnimation("run.animdat");
+    // tentacle.animation = &ma;
 
     f32 deltaTime = 0;
     LARGE_INTEGER endTime;
@@ -1142,9 +1143,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         }
         
         updateGS(gameState);
-        updateMeshAnimation(tentacle.animation, gameState->deltaTime);
-        renderAnimatedMesh(&tentacle, Vector3(0), Vector3(1), Quaternion());
-        //addTexturedMeshToBuffer(gameState, &tentacle.mesh, Vector3(0), Vector3(1), Quaternion());
 
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState->clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);

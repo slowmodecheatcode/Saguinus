@@ -178,6 +178,25 @@ static void addTexturedMeshToBuffer(GameState* state, TexturedMesh* mesh, Vector
     tmb->indexAddons[idx] = mesh->indexAddon;
 }
 
+static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
+    mesh->currentPoseElapsed += deltaTime;
+    if(mesh->currentPoseElapsed > mesh->currentPoseTime){
+        u32 ckf = mesh->currentKeyframe;
+        u32 nkf = mesh->nextKeyframe;
+        if(nkf < mesh->totalPoses - 1){
+            ckf++;
+            nkf++;
+        }else{
+            ckf = 0;
+            nkf = 1;
+        }
+        mesh->currentPoseElapsed -= mesh->currentPoseTime;
+        mesh->currentPoseTime = (mesh->keyframes[nkf] - mesh->keyframes[ckf]) / mesh->frameRate;
+        mesh->currentKeyframe = ckf;
+        mesh->nextKeyframe = nkf;
+    }
+}
+
 static void updateCameraWithMouse(GameState* state){
     Camera* camera = &state->camera;
     f32 deltaTime = state->deltaTime;
@@ -326,27 +345,30 @@ static void updatePlayer(GameState* state){
 }
 
 static void renderGame(GameState* state){
-    // Camera* cam = &state->camera;
-    // Player* p = &state->player;
-    // u32 tot = state->totalObstacles;
-    // debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
-    // debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
-    // debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
-    // for(u32 i = 0; i < tot; i++){
-    //     Obstacle* o = &state->obstacles[i];
-    //     debugCube(state, o->position, o->scale, o->color);
-    // }
+    Camera* cam = &state->camera;
+    Player* p = &state->player;
+    u32 tot = state->totalObstacles;
+    debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
+    debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
+    debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
+    for(u32 i = 0; i < tot; i++){
+        Obstacle* o = &state->obstacles[i];
+        debugCube(state, o->position, o->scale, o->color);
+    }
+    
+    updateMeshAnimation(p->mesh.animation, state->deltaTime);
+    state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
     // addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
-    // // addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
-    // debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
+    // addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
+    debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
 
 
     
-    // s8 buf[64];
-    // createDebugString(buf, "Score: %i", state->score);
-    // addTextToCanvas(state, buf, Vector2(450, 650), 3, Vector4(0, 0, 0, 1));
-    // createDebugString(buf, "Hi-Score: %i", state->hiScore);
-    // addTextToCanvas(state, buf, Vector2(750, 650), 2, Vector4(0, 0, 0, 1));
+    s8 buf[64];
+    createDebugString(buf, "Score: %i", state->score);
+    addTextToCanvas(state, buf, Vector2(450, 650), 3, Vector4(0, 0, 0, 1));
+    createDebugString(buf, "Hi-Score: %i", state->hiScore);
+    addTextToCanvas(state, buf, Vector2(750, 650), 2, Vector4(0, 0, 0, 1));
 }
 
 static void resetGame(GameState* state){
@@ -400,8 +422,12 @@ static void initializeGameState(GameState* state){
     state->player.orientation = Quaternion();
     rotate(&state->player.orientation, Vector3(0, 1, 0), HALF_PI);
     state->player.scale = Vector3(1);
-    state->player.mesh = state->osFunctions.createTexturedMesh("character.texmesh");
+    state->player.mesh = state->osFunctions.createAnimatedMesh("character.texmesh");
     state->gravity = -100;
+
+    state->player.runAnimation = state->osFunctions.createMeshAnimation("run.animdat");
+    state->player.squatAnimation = state->osFunctions.createMeshAnimation("squat.animdat");
+    state->player.mesh.animation = &state->player.runAnimation;
 
     state->totalObstacles = 8;
 
