@@ -1064,23 +1064,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->mouseInputs = mouseInputs;
     gameState->currentFont = &debugFont;
     gameState->storage.tempMemoryBuffer = tempStorageBuffer;
-    gameState->storage.longTermBufferPointer = longTermStorageBuffer;
+    gameState->storage.longTermBuffer = longTermStorageBuffer;
+    gameState->storage.longTermBufferPointer = gameState->storage.longTermBuffer;
     initializeKeyCodes(gameState);
-
-    // u32 fl;
-    // readFileIntoBuffer("character.animesh", tempStorageBuffer, &fl);
-    // u8* tsbPtr = tempStorageBuffer;
-    // u32 vSize = *(u32*)tsbPtr;
-    // tsbPtr += 4;
-    // u32 iSize = *(u32*)tsbPtr;
-    // tsbPtr += 4;
-    // f32* vData = (f32*)tsbPtr;
-    // tsbPtr += vSize;
-    // u16* iData = (u16*)tsbPtr;
-
-    // AnimatedMesh tentacle = createAnimatedMesh(vData, vSize, iData, iSize);
-    // MeshAnimation ma = createMeshAnimation("run.animdat");
-    // tentacle.animation = &ma;
 
     f32 deltaTime = 0;
     LARGE_INTEGER endTime;

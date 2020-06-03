@@ -316,7 +316,6 @@ static void updateObstacles(GameState* state){
             }
         }
     }
-    
 }
 
 static void updatePlayer(GameState* state){
@@ -329,6 +328,7 @@ static void updatePlayer(GameState* state){
     if(!p->isJumping && keyPressedOnce(state, c->KEY_W)){
         p->yVelocity = 50;
         p->isJumping = true;
+        p->mesh.animation = &p->squatAnimation;
     }
 
     if(p->isJumping){
@@ -337,6 +337,7 @@ static void updatePlayer(GameState* state){
         if(p->position.y < 0){
             p->position = 0;
             p->isJumping = false;
+            p->mesh.animation = &p->runAnimation;
         }else if(keyInputs[c->KEY_S]){
             p->yVelocity -= 5;
         }
@@ -360,7 +361,7 @@ static void renderGame(GameState* state){
     state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
     // addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
     // addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
-    debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
+    // debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
 
 
     
@@ -414,7 +415,7 @@ static void initializeGameState(GameState* state){
     state->light.position = Vector3(5, 15, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
-    state->storage.longTermBufferPointer = state->storage.tempMemoryBuffer;
+    
 
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);
@@ -422,10 +423,10 @@ static void initializeGameState(GameState* state){
     state->player.orientation = Quaternion();
     rotate(&state->player.orientation, Vector3(0, 1, 0), HALF_PI);
     state->player.scale = Vector3(1);
-    state->player.mesh = state->osFunctions.createAnimatedMesh("character.texmesh");
+    state->player.mesh = state->osFunctions.createAnimatedMesh("character.animesh");
     state->gravity = -100;
 
-    state->player.runAnimation = state->osFunctions.createMeshAnimation("run.animdat");
+    state->player.runAnimation = state->osFunctions.createMeshAnimation("jump.animdat");
     state->player.squatAnimation = state->osFunctions.createMeshAnimation("squat.animdat");
     state->player.mesh.animation = &state->player.runAnimation;
 

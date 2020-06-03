@@ -1,5 +1,4 @@
 FEATURE:
-animated meshes
 mouse picking
 terrain generation and rendering
 instance rendering
