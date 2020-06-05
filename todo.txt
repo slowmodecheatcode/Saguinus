@@ -12,14 +12,15 @@ make text and canvas positioning scale with window
 handle updating resolution on window resize
 
 OPTIMIZATION:
+precompute camera projection * camera view matrices
 function timing
 use mapping to update constant buffers
 optimize input
 replace math.h's trig functions
 look into getting rid of padding variables in constant buffer structs
 
-MISC:
+CLEANUP:
 organize mathematics.h
-
+possibly unify renderer initialization code
 
 

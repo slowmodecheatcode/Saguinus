@@ -96,6 +96,27 @@ struct DebugRenderer {
     u32 currentIndexCount;
 };
 
+struct SkyboxRenderer {
+    struct VertexConstants {
+        Matrix4 cameraMatrix;
+    } vertexConstants;
+
+    struct PixelConstants {
+    } pixelConstants;
+
+    ID3D11Buffer* vertexBuffer;
+    ID3D11Buffer* indexBuffer;
+    ID3D11Buffer* vertexConstBuffer;
+    ID3D11Buffer* pixelConstBuffer;
+    ID3D11VertexShader* vertexShader;
+    ID3D11PixelShader* pixelShader;
+    ID3D11InputLayout* inputLayout;
+    Texture2D defaultTexture;
+
+    u32 vertexStride;
+    u32 vertexOffset;
+};
+
 struct WindowsGamepad {
     XINPUT_STATE state;
     s64 lastPacket;
@@ -114,6 +135,7 @@ static Font debugFont;
 static TexturedMeshRenderer texturedMeshRenderer;
 static CanvasRenderer canvasRenderer;
 static DebugRenderer debugRenderer;
+static SkyboxRenderer skyboxRenderer;
 
 static bool keyInputs[128];
 static bool mouseInputs[4];

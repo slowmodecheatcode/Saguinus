@@ -354,6 +354,127 @@ static void initializeDebugRenderer(){
     debugRenderer.currentIndexCount = 36;
 }
 
+static void initializeSkyboxRenderer(){
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* pixelBlob;
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"skybox_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"skybox_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+
+    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &skyboxRenderer.vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &skyboxRenderer.pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &skyboxRenderer.inputLayout);
+    checkError(hr, "Could not create input layout");
+
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.ByteWidth = sizeof(f32) * 5 * 24;
+    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA bufferData = {};
+    bufferData.pSysMem = tempStorageBuffer;
+
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &skyboxRenderer.vertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
+
+    skyboxRenderer.vertexStride = sizeof(float) * 5;
+    skyboxRenderer.vertexOffset = 0;
+
+    bufferDesc.ByteWidth = sizeof(u16) * 36;
+    bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+ 
+
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &skyboxRenderer.indexBuffer);
+    checkError(hr, "Error creating index buffer");
+
+    d3d11Context->UpdateSubresource(skyboxRenderer.vertexBuffer, 0, 0, texturedCubeVertices, 0, 0);
+    d3d11Context->UpdateSubresource(skyboxRenderer.indexBuffer, 0, 0, cubeIndices, 0, 0);
+
+    bufferDesc.ByteWidth = sizeof(skyboxRenderer.vertexConstants);
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bufferDesc.CPUAccessFlags = 0;
+    bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+
+    D3D11_SUBRESOURCE_DATA constBufData = {};
+    constBufData.pSysMem = &skyboxRenderer.vertexConstants;
+
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &constBufData, &skyboxRenderer.vertexConstBuffer);
+    checkError(hr, "Error creating vertex constant buffer");
+
+
+    // bufferDesc.ByteWidth = sizeof(skyboxRenderer.pixelConstants);
+    // bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    // D3D11_SUBRESOURCE_DATA pixConstBufData = {};
+    // pixConstBufData.pSysMem = &skyboxRenderer.pixelConstants;
+
+    // hr = d3d11Device->CreateBuffer(&bufferDesc, &pixConstBufData, &skyboxRenderer.pixelConstBuffer);
+    // checkError(hr, "Error creating pixel constant buffer");
+
+    u8 sbTex[6][4] = {
+        {255, 0, 0, 255},
+        {200, 150, 0, 255},
+        {255, 255, 0, 255},
+        {0, 255, 0, 255},
+        {0, 0, 255, 255},
+        {200, 50, 150, 255}
+    };
+
+    Texture2D tex;
+
+    D3D11_SUBRESOURCE_DATA texData[6] = {};
+    for(u32 i = 0; i < 6; i++){
+        texData[i].pSysMem = sbTex;
+        texData[i].SysMemPitch = 4;
+    }
+
+    D3D11_TEXTURE2D_DESC texDesc = {};
+    texDesc.Width = 1;
+    texDesc.Height = 1; 
+    texDesc.MipLevels = 1;
+    texDesc.ArraySize = 6;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DEFAULT;
+    texDesc.CPUAccessFlags = 0;
+    texDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+    ID3D11Texture2D* texture;
+    hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
+    checkError(hr, "Error creating texture");
+
+    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, texDesc.Format, 0, 1, 0, 0);
+
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tex.texture);
+    checkError(hr, "Error creating shader resource view");
+    texture->Release();
+}
+
+static void renderSkybox(Camera* camera){
+    d3d11Context->VSSetShader(skyboxRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(skyboxRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(skyboxRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &skyboxRenderer.vertexBuffer, &skyboxRenderer.vertexStride, &skyboxRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(skyboxRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &skyboxRenderer.vertexConstBuffer);
+    // d3d11Context->PSSetConstantBuffers(0, 1, &skyboxRenderer.pixelConstBuffer);
+
+    Matrix4 camMat = camera->projection * camera->view;
+    d3d11Context->UpdateSubresource(skyboxRenderer.vertexConstBuffer, 0, 0, &camMat, 0, 0);
+
+    d3d11Context->DrawIndexed(36, 0, 0);
+}
+
 static void renderDebugBuffer(DebugBuffer* buffer, Camera* camera){
     d3d11Context->VSSetShader(debugRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(debugRenderer.pixelShader, 0, 0);
@@ -1020,6 +1141,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     initializeCanvasRenderer();
     initializeTexturedMeshRenderer();
     initializeDebugRenderer();
+    initializeSkyboxRenderer();
 
     //ShowCursor(false);
     ShowWindow(hwnd, SW_SHOW);
@@ -1134,6 +1256,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
+        renderSkybox(&gameState->camera);
         renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
         renderDebugBuffer(&gameState->debugBuffer, &gameState->camera);
         //renderTextBuffer(&gameState->textBuffer);
