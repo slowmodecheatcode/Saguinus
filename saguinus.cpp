@@ -363,8 +363,6 @@ static void renderGame(GameState* state){
     // addTexturedMeshToBuffer(state, &o->mesh, o->position, o->scale, o->orientation);
     // debugCube(state, p->position, p->scale, Vector4(0, 0, 1, 1));
 
-
-    
     s8 buf[64];
     createDebugString(buf, "Score: %i", state->score);
     addTextToCanvas(state, buf, Vector2(450, 650), 3, Vector4(0, 0, 0, 1));
@@ -426,7 +424,7 @@ static void initializeGameState(GameState* state){
     state->player.mesh = state->osFunctions.createAnimatedMesh("character.animesh");
     state->gravity = -100;
 
-    state->player.runAnimation = state->osFunctions.createMeshAnimation("jump.animdat");
+    state->player.runAnimation = state->osFunctions.createMeshAnimation("run.animdat");
     state->player.squatAnimation = state->osFunctions.createMeshAnimation("squat.animdat");
     state->player.mesh.animation = &state->player.runAnimation;
 

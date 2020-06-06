@@ -13,6 +13,61 @@ static void checkError(HRESULT err, LPCSTR msg){
     }
 }
 
+static TextureCube generateProceduralSkybox(){
+    u8 tcData[6][4096];
+    TextureCube tc = {};
+    u32 tSize = 32;
+
+    u32 ctr = 0;
+    for(u32 i = 0; i < 6; i++){
+        ctr = 0;
+        for(u32 j = 0; j < tSize; j++){
+            for(u32 k = 0; k < tSize * 4; k += 4){
+                tcData[i][(j * tSize) + k + 0] = 255;
+                tcData[i][(j * tSize) + k + 1] = 255;
+                tcData[i][(j * tSize) + k + 2] = 255;
+                tcData[i][(j * tSize) + k + 3] = 255;
+                ctr += 4;
+            }
+        }
+    }
+
+    D3D11_SUBRESOURCE_DATA texData[6] = {};
+    for(u32 i = 0; i < 6; i++){
+        texData[i].pSysMem = tcData[i];
+        texData[i].SysMemPitch = tSize * 4;
+    }
+
+    D3D11_TEXTURE2D_DESC texDesc = {};
+    texDesc.Width = tSize;
+    texDesc.Height = tSize; 
+    texDesc.MipLevels = 1;
+    texDesc.ArraySize = 6;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DEFAULT;
+    texDesc.CPUAccessFlags = 0;
+    texDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+    ID3D11Texture2D* texture;
+    HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
+    checkError(hr, "Error creating texture");
+
+    //CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURECUBE, texDesc.Format, 0, 1, 0, 0);
+    D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc = {};
+    resViewDesc.Format = texDesc.Format;
+    resViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+    resViewDesc.Texture2D.MipLevels = 1;
+    resViewDesc.Texture2D.MostDetailedMip = 0;
+
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tc.texture);
+    checkError(hr, "Error creating shader resource view");
+    texture->Release();
+
+    return tc;
+}
+
 static void* allocateMemory(u32 amount){
     return VirtualAlloc(0, amount, MEM_COMMIT, PAGE_READWRITE);
 }
@@ -87,7 +142,65 @@ static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPi
     HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, &texData, &texture);
     checkError(hr, "Error creating texture");
 
-    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, texDesc.Format, 0, 1, 0, 0);
+    D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc = {};
+    resViewDesc.Format = texDesc.Format;
+    resViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    resViewDesc.Texture2D.MipLevels = 1;
+    resViewDesc.Texture2D.MostDetailedMip = 0;
+
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tex.texture);
+    checkError(hr, "Error creating shader resource view");
+    texture->Release();
+
+    return tex;
+}
+
+static TextureCube createTextureCube(u8* data, u32 width, u32 height, u32 bytesPerPixel){
+    TextureCube tex;
+
+    D3D11_SUBRESOURCE_DATA texData[6] = {};
+    u8* dataPtr = data;
+    for(u32 i = 0; i < 6; i++){
+        texData[i].pSysMem = dataPtr;
+        texData[i].SysMemPitch = bytesPerPixel * width;
+        dataPtr += texData[i].SysMemPitch * height;
+    }
+    
+    D3D11_TEXTURE2D_DESC texDesc = {};
+    texDesc.Width = width;
+    texDesc.Height = height; 
+    texDesc.MipLevels = 1;
+    texDesc.ArraySize = 6;
+    switch(bytesPerPixel){
+        case 1 :{
+            texDesc.Format = DXGI_FORMAT_R8_UNORM;
+            break;
+        }
+        case 2 :{
+            texDesc.Format = DXGI_FORMAT_R8G8_UNORM;
+            break;
+        }
+        case 4 :{
+            texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            break;
+        }
+        default: {
+            MessageBox(0, "Bits per pixel when creating texture must be 1, 2, or 4", "ERROR", 0);
+            exit(1);
+        }
+    }
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    texDesc.SampleDesc.Count = 1;
+
+    ID3D11Texture2D* texture;
+    HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
+    checkError(hr, "Error creating texture");
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc = {};
+    resViewDesc.Format = texDesc.Format;
+    resViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+    resViewDesc.Texture2D.MipLevels = 1;
+    resViewDesc.Texture2D.MostDetailedMip = 0;
 
     hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tex.texture);
     checkError(hr, "Error creating shader resource view");
@@ -370,10 +483,9 @@ static void initializeSkyboxRenderer(){
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
     
-    hr = d3d11Device->CreateInputLayout(layoutDesc, 2, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &skyboxRenderer.inputLayout);
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 1, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &skyboxRenderer.inputLayout);
     checkError(hr, "Could not create input layout");
 
     D3D11_BUFFER_DESC bufferDesc = {};
@@ -386,7 +498,7 @@ static void initializeSkyboxRenderer(){
     hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &skyboxRenderer.vertexBuffer);
     if(hr != S_OK)  MessageBox(0, "Error creating vertex buffer", "ERROR", 0);
 
-    skyboxRenderer.vertexStride = sizeof(float) * 5;
+    skyboxRenderer.vertexStride = sizeof(float) * 3;
     skyboxRenderer.vertexOffset = 0;
 
     bufferDesc.ByteWidth = sizeof(u16) * 36;
@@ -396,7 +508,7 @@ static void initializeSkyboxRenderer(){
     hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &skyboxRenderer.indexBuffer);
     checkError(hr, "Error creating index buffer");
 
-    d3d11Context->UpdateSubresource(skyboxRenderer.vertexBuffer, 0, 0, texturedCubeVertices, 0, 0);
+    d3d11Context->UpdateSubresource(skyboxRenderer.vertexBuffer, 0, 0, skyboxVertices, 0, 0);
     d3d11Context->UpdateSubresource(skyboxRenderer.indexBuffer, 0, 0, cubeIndices, 0, 0);
 
     bufferDesc.ByteWidth = sizeof(skyboxRenderer.vertexConstants);
@@ -429,11 +541,9 @@ static void initializeSkyboxRenderer(){
         {200, 50, 150, 255}
     };
 
-    Texture2D tex;
-
     D3D11_SUBRESOURCE_DATA texData[6] = {};
     for(u32 i = 0; i < 6; i++){
-        texData[i].pSysMem = sbTex;
+        texData[i].pSysMem = sbTex[i];
         texData[i].SysMemPitch = 4;
     }
 
@@ -453,11 +563,14 @@ static void initializeSkyboxRenderer(){
     hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
     checkError(hr, "Error creating texture");
 
-    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURE2D, texDesc.Format, 0, 1, 0, 0);
+    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURECUBE, texDesc.Format, 0, 1, 0, 0);
 
-    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tex.texture);
+    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&skyboxRenderer.defaultTexture);
     checkError(hr, "Error creating shader resource view");
     texture->Release();
+
+    skyboxRenderer.defaultTexture = generateProceduralSkybox();//createTextureCube(sbTex, 1, 1, 4);
+    skyboxRenderer.currentTexture = skyboxRenderer.defaultTexture;
 }
 
 static void renderSkybox(Camera* camera){
@@ -468,8 +581,9 @@ static void renderSkybox(Camera* camera){
     d3d11Context->IASetIndexBuffer(skyboxRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
     d3d11Context->VSSetConstantBuffers(0, 1, &skyboxRenderer.vertexConstBuffer);
     // d3d11Context->PSSetConstantBuffers(0, 1, &skyboxRenderer.pixelConstBuffer);
+    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&skyboxRenderer.currentTexture);
 
-    Matrix4 camMat = camera->projection * camera->view;
+    Matrix4 camMat = camera->projection * quaternionToMatrix4(camera->orientation);
     d3d11Context->UpdateSubresource(skyboxRenderer.vertexConstBuffer, 0, 0, &camMat, 0, 0);
 
     d3d11Context->DrawIndexed(36, 0, 0);
@@ -1079,7 +1193,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     D3D11_DEPTH_STENCIL_DESC depthStenDesc = {};
     depthStenDesc.DepthEnable = true;
     depthStenDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-    depthStenDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    depthStenDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 
     ID3D11DepthStencilState * depthStencilState;
     d3d11Device->CreateDepthStencilState(&depthStenDesc, &depthStencilState);

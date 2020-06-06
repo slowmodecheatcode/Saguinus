@@ -1,11 +1,10 @@
 struct VertexInput {
     float3 position : POSITION;
-    float2 uvCoordinates : UVCOORD;
 };
 
 struct VertexOutput {
     float4 position : SV_POSITION;
-    float2 uvCoordinates : UVCOORD;
+    float3 uvCoordinates : UVCOORD;
 };
 
 cbuffer VertexConstants {
@@ -17,16 +16,16 @@ cbuffer VertexConstants {
 
 struct PixelInput {
     float4 position : SV_POSITION;
-    float2 uvCoordinates : UVCOORD;
+    float3 uvCoordinates : UVCOORD;
 };
 
-Texture2D tex : register(t0);
+TextureCube tex : register(t0);
 SamplerState texSampler : register(s0);
 
 VertexOutput vertexMain(VertexInput input){
     VertexOutput output;
-    output.position = mul(cameraMatrix, float4(input.position, 1));
-    output.uvCoordinates = input.uvCoordinates;
+    output.position = mul(cameraMatrix, float4(input.position, 1)).xyww;
+    output.uvCoordinates = input.position;
     return output;
 }
 

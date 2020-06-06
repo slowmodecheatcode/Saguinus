@@ -111,7 +111,8 @@ struct SkyboxRenderer {
     ID3D11VertexShader* vertexShader;
     ID3D11PixelShader* pixelShader;
     ID3D11InputLayout* inputLayout;
-    Texture2D defaultTexture;
+    TextureCube defaultTexture;
+    TextureCube currentTexture;
 
     u32 vertexStride;
     u32 vertexOffset;

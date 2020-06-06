@@ -8,6 +8,7 @@ import fonts from .ttf .otf
 improve lighting
 
 BUG FIX:
+fix createTextureCube function
 make text and canvas positioning scale with window
 handle updating resolution on window resize
 
@@ -21,6 +22,7 @@ look into getting rid of padding variables in constant buffer structs
 
 CLEANUP:
 organize mathematics.h
+combine VertexOutput and PixelInput structs in shaders
 possibly unify renderer initialization code
 
 

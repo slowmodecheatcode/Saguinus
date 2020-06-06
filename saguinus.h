@@ -101,6 +101,10 @@ struct Texture2D {
     void* texture;
 };
 
+struct TextureCube {
+    void* texture;
+};
+
 struct AudioEmitter {
     void* emitter;
 };
