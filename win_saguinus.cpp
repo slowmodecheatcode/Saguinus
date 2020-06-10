@@ -13,59 +13,95 @@ static void checkError(HRESULT err, LPCSTR msg){
     }
 }
 
-static TextureCube generateProceduralSkybox(){
-    u8 tcData[6][4096];
-    TextureCube tc = {};
-    u32 tSize = 32;
+static f32 cubicInterpolate (f32 p[4], f32 x) {
+	return p[1] + 0.5 * x*(p[2] - p[0] + x*(2.0*p[0] - 5.0*p[1] + 4.0*p[2] - p[3] + x*(3.0*(p[1] - p[2]) + p[3] - p[0])));
+}
 
-    u32 ctr = 0;
-    for(u32 i = 0; i < 6; i++){
-        ctr = 0;
-        for(u32 j = 0; j < tSize; j++){
-            for(u32 k = 0; k < tSize * 4; k += 4){
-                tcData[i][(j * tSize) + k + 0] = 255;
-                tcData[i][(j * tSize) + k + 1] = 255;
-                tcData[i][(j * tSize) + k + 2] = 255;
-                tcData[i][(j * tSize) + k + 3] = 255;
-                ctr += 4;
-            }
+static f32 bicubicInterpolate (f32 p[4][4], f32 x, f32 y) {
+	f32 arr[4];
+	arr[0] = cubicInterpolate(p[0], y);
+	arr[1] = cubicInterpolate(p[1], y);
+	arr[2] = cubicInterpolate(p[2], y);
+	arr[3] = cubicInterpolate(p[3], y);
+	return cubicInterpolate(arr, x);
+}
+
+static void createCubiclyInterpolatedPlane(f32* buffer, u32 width, u32 height, u32 freq){
+    u32 dw = width / freq;
+    u32 dh = height / freq;
+    u32 totalSize = width * height * 4;
+    u32 rAmt = freq * 4;
+    f32** ranNums = (f32**)malloc(sizeof(f32*) * rAmt);
+    for(u32 i = 0; i < rAmt; i++){
+        ranNums[i] = (f32*)malloc(sizeof(f32) * rAmt);
+    }
+    for(u32 i = 0; i < rAmt; i++){
+        for(u32 j = 0; j < rAmt; j++){
+            ranNums[i][j] = (f32)randomU32() / (f32)MAX_U32;
         }
     }
 
-    D3D11_SUBRESOURCE_DATA texData[6] = {};
-    for(u32 i = 0; i < 6; i++){
-        texData[i].pSysMem = tcData[i];
-        texData[i].SysMemPitch = tSize * 4;
+    u32 ctr = 0;
+    for(u32 i = 0; i < height; i++){
+        for(u32 j = 0; j < width; j++){
+            u32 row = i / dh;
+            u32 col = j / dw;
+            f32 rnum[4][4] = {
+                {ranNums[row + 0][col], ranNums[row + 0][col + 1], ranNums[row + 0][col + 2], ranNums[row + 0][col + 3]},
+                {ranNums[row + 1][col], ranNums[row + 1][col + 1], ranNums[row + 1][col + 2], ranNums[row + 1][col + 3]},
+                {ranNums[row + 2][col], ranNums[row + 2][col + 1], ranNums[row + 2][col + 2], ranNums[row + 2][col + 3]},
+                {ranNums[row + 3][col], ranNums[row + 3][col + 1], ranNums[row + 3][col + 2], ranNums[row + 3][col + 3]},
+            };
+
+            f32 x = (f32)(i % dh) / dh;
+            f32 y = (f32)(j % dw) / dw;
+            f32 v = bicubicInterpolate(rnum, x, y);
+            buffer[ctr++] = v;
+            buffer[ctr++] = v;
+            buffer[ctr++] = 1;
+            buffer[ctr++] = 1;
+        }
     }
 
-    D3D11_TEXTURE2D_DESC texDesc = {};
-    texDesc.Width = tSize;
-    texDesc.Height = tSize; 
-    texDesc.MipLevels = 1;
-    texDesc.ArraySize = 6;
-    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    texDesc.SampleDesc.Count = 1;
-    texDesc.Usage = D3D11_USAGE_DEFAULT;
-    texDesc.CPUAccessFlags = 0;
-    texDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+    for(u32 i = 0; i < rAmt; i++){
+        free(ranNums[i]);
+    }
+    free(ranNums);
+}
 
-    ID3D11Texture2D* texture;
-    HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
-    checkError(hr, "Error creating texture");
+static void generatePerlinNoiseCubePixels(u8* buffer, u32 width = 256, u32 height = 256){
+    u32 totalSize = width * height * 4;
+    f32* tbuf = (f32*)malloc(totalSize * sizeof(f32));
+    f32* tbuf2 = (f32*)malloc(totalSize * sizeof(f32));
 
-    //CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURECUBE, texDesc.Format, 0, 1, 0, 0);
-    D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc = {};
-    resViewDesc.Format = texDesc.Format;
-    resViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-    resViewDesc.Texture2D.MipLevels = 1;
-    resViewDesc.Texture2D.MostDetailedMip = 0;
+    createCubiclyInterpolatedPlane(tbuf2, width, height, 1);
+    for(u32 i = 0; i < totalSize; i++){
+        tbuf[i] = tbuf2[i];
+    }
+    createCubiclyInterpolatedPlane(tbuf2, width, height, 2);
+    for(u32 i = 0; i < totalSize; i++){
+        tbuf[i] += tbuf2[i];
+    }
+    createCubiclyInterpolatedPlane(tbuf2, width, height, 4);
+    for(u32 i = 0; i < totalSize; i++){
+        tbuf[i] += tbuf2[i];
+    }
+    createCubiclyInterpolatedPlane(tbuf2, width, height, 8);
+    for(u32 i = 0; i < totalSize; i++){
+        tbuf[i] += tbuf2[i];
+    }
+    for(u32 i = 0; i < totalSize; i++){
+        tbuf[i] /= 4;
+    }
 
-    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&tc.texture);
-    checkError(hr, "Error creating shader resource view");
-    texture->Release();
+    u32 ctr = 0;
+    for(u32 ct = 0; ct < 6; ct++){
+        for(u32 i = 0; i < totalSize; i++){
+            buffer[ctr++] = tbuf[i] * 255;
+        }
+    }
 
-    return tc;
+    free(tbuf);
 }
 
 static void* allocateMemory(u32 amount){
@@ -159,11 +195,12 @@ static TextureCube createTextureCube(u8* data, u32 width, u32 height, u32 bytesP
     TextureCube tex;
 
     D3D11_SUBRESOURCE_DATA texData[6] = {};
-    u8* dataPtr = data;
+
+    u32 pitch = bytesPerPixel * width;
+    u32 bytesPerTexture = pitch * height;
     for(u32 i = 0; i < 6; i++){
-        texData[i].pSysMem = dataPtr;
-        texData[i].SysMemPitch = bytesPerPixel * width;
-        dataPtr += texData[i].SysMemPitch * height;
+        texData[i].pSysMem = data + (i * bytesPerTexture);
+        texData[i].SysMemPitch = pitch;
     }
     
     D3D11_TEXTURE2D_DESC texDesc = {};
@@ -191,6 +228,9 @@ static TextureCube createTextureCube(u8* data, u32 width, u32 height, u32 bytesP
     }
     texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DEFAULT;
+    texDesc.CPUAccessFlags = 0;
+    texDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
     ID3D11Texture2D* texture;
     HRESULT hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
@@ -523,57 +563,23 @@ static void initializeSkyboxRenderer(){
     checkError(hr, "Error creating vertex constant buffer");
 
 
-    // bufferDesc.ByteWidth = sizeof(skyboxRenderer.pixelConstants);
-    // bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-
-    // D3D11_SUBRESOURCE_DATA pixConstBufData = {};
-    // pixConstBufData.pSysMem = &skyboxRenderer.pixelConstants;
-
-    // hr = d3d11Device->CreateBuffer(&bufferDesc, &pixConstBufData, &skyboxRenderer.pixelConstBuffer);
-    // checkError(hr, "Error creating pixel constant buffer");
-
-    u8 sbTex[6][4] = {
-        {255, 0, 0, 255},
-        {200, 150, 0, 255},
-        {255, 255, 0, 255},
-        {0, 255, 0, 255},
-        {0, 0, 255, 255},
-        {200, 50, 150, 255}
+    u8 sbTex[] = {
+        255, 0, 0, 255,
+        200, 150, 0, 255,
+        255, 255, 0, 255,
+        0, 255, 0, 255,
+        0, 0, 255, 255,
+        200, 50, 150, 255
     };
 
-    D3D11_SUBRESOURCE_DATA texData[6] = {};
-    for(u32 i = 0; i < 6; i++){
-        texData[i].pSysMem = sbTex[i];
-        texData[i].SysMemPitch = 4;
-    }
+    generatePerlinNoiseCubePixels(tempStorageBuffer);
 
-    D3D11_TEXTURE2D_DESC texDesc = {};
-    texDesc.Width = 1;
-    texDesc.Height = 1; 
-    texDesc.MipLevels = 1;
-    texDesc.ArraySize = 6;
-    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    texDesc.SampleDesc.Count = 1;
-    texDesc.Usage = D3D11_USAGE_DEFAULT;
-    texDesc.CPUAccessFlags = 0;
-    texDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
-
-    ID3D11Texture2D* texture;
-    hr = d3d11Device->CreateTexture2D(&texDesc, texData, &texture);
-    checkError(hr, "Error creating texture");
-
-    CD3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc(texture, D3D11_SRV_DIMENSION_TEXTURECUBE, texDesc.Format, 0, 1, 0, 0);
-
-    hr = d3d11Device->CreateShaderResourceView(texture, &resViewDesc, (ID3D11ShaderResourceView**)&skyboxRenderer.defaultTexture);
-    checkError(hr, "Error creating shader resource view");
-    texture->Release();
-
-    skyboxRenderer.defaultTexture = generateProceduralSkybox();//createTextureCube(sbTex, 1, 1, 4);
+    skyboxRenderer.defaultTexture = createTextureCube(tempStorageBuffer, 256, 256, 4);
     skyboxRenderer.currentTexture = skyboxRenderer.defaultTexture;
 }
 
 static void renderSkybox(Camera* camera){
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
     d3d11Context->VSSetShader(skyboxRenderer.vertexShader, 0, 0);
     d3d11Context->PSSetShader(skyboxRenderer.pixelShader, 0, 0);
     d3d11Context->IASetInputLayout(skyboxRenderer.inputLayout);

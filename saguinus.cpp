@@ -444,7 +444,7 @@ static void initializeGameState(GameState* state){
         state->obstacles[i].color = Vector4((f32)randomU32() / maxf, (f32)randomU32() / maxf, (f32)randomU32() / maxf, 1);
     }
 
-    state->mode = GameMode::GAME_MODE_INTRO;
+    state->mode = GameMode::GAME_MODE_DEBUG;
 
     state->gameTime = 0;
     state->score = 0;
@@ -508,6 +508,7 @@ extern "C" void updateGameState(GameState* state){
             state->mode = GameMode::GAME_MODE_DEBUG;
         }else{
             initializeGameState(state);
+            state->mode = GameMode::GAME_MODE_INTRO;
         }
     }
 

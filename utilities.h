@@ -2,6 +2,8 @@
 
 #include <stdarg.h>
 
+#define MAX_U32 4294967295
+
 #define KILOBYTE(x) (x * 1024)
 #define MEGABYTE(x) (x * KILOBYTE(1024))
 #define GIGABYTE(x) (x * MEGABYTE(1024))

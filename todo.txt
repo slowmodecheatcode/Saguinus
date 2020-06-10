@@ -8,7 +8,6 @@ import fonts from .ttf .otf
 improve lighting
 
 BUG FIX:
-fix createTextureCube function
 make text and canvas positioning scale with window
 handle updating resolution on window resize
 
