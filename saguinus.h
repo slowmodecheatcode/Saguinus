@@ -215,7 +215,8 @@ struct OSFunctions {
     bool (*writeToFile)(const s8* fileName, void* data, u32 dataSize);
     Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
     Texture2D (*createTexture2DFromData)(u8* data, u32 width, u32 height, u32 bytesPerPixel);
-    TexturedMesh (*createTexturedMesh)(const s8* fileName);
+    TexturedMesh (*createTexturedMeshFromFile)(const s8* fileName);
+    TexturedMesh (*createTexturedMeshFromData)(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize);
     AnimatedMesh (*createAnimatedMesh)(const s8* fileName);
     MeshAnimation (*createMeshAnimation)(const s8* fileName);
     AudioEmitter (*createAudioEmitter)();
@@ -262,7 +263,6 @@ struct Player {
 #define MAX_OBSTACLES 256
 
 struct GameState {
-    //TextBuffer textBuffer;
     CanvasBuffer canvasBuffer;
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
@@ -280,6 +280,8 @@ struct GameState {
 
     Camera camera;
     PointLight light;
+
+    TexturedMesh terrain;
 
     Obstacle obstacles[MAX_OBSTACLES];
     Player player;

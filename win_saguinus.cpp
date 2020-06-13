@@ -30,13 +30,26 @@ static void createCubiclyInterpolatedPlane(f32* buffer, u32 width, u32 height, u
     u32 dw = width / freq;
     u32 dh = height / freq;
     u32 totalSize = width * height * 4;
-    u32 rAmt = freq * 4;
+    u32 rAmt = freq + 3;
     f32** ranNums = (f32**)malloc(sizeof(f32*) * rAmt);
     for(u32 i = 0; i < rAmt; i++){
         ranNums[i] = (f32*)malloc(sizeof(f32) * rAmt);
     }
+
     for(u32 i = 0; i < rAmt; i++){
-        for(u32 j = 0; j < rAmt; j++){
+        f32 v = 0.5;
+        ranNums[0][i] = v;
+        ranNums[1][i] = v;
+        ranNums[rAmt - 1][i] = v;
+        ranNums[rAmt - 2][i] = v;
+        ranNums[i][0] = v;
+        ranNums[i][1] = v;
+        ranNums[i][rAmt - 1] = v;
+        ranNums[i][rAmt - 2] = v;
+    }
+
+    for(u32 i = 2; i < rAmt - 2; i++){
+        for(u32 j = 2; j < rAmt - 2; j++){
             ranNums[i][j] = (f32)randomU32() / (f32)MAX_U32;
         }
     }
@@ -74,28 +87,30 @@ static void generatePerlinNoiseCubePixels(u8* buffer, u32 width = 256, u32 heigh
     f32* tbuf = (f32*)malloc(totalSize * sizeof(f32));
     f32* tbuf2 = (f32*)malloc(totalSize * sizeof(f32));
 
-    createCubiclyInterpolatedPlane(tbuf2, width, height, 1);
-    for(u32 i = 0; i < totalSize; i++){
-        tbuf[i] = tbuf2[i];
-    }
-    createCubiclyInterpolatedPlane(tbuf2, width, height, 2);
-    for(u32 i = 0; i < totalSize; i++){
-        tbuf[i] += tbuf2[i];
-    }
-    createCubiclyInterpolatedPlane(tbuf2, width, height, 4);
-    for(u32 i = 0; i < totalSize; i++){
-        tbuf[i] += tbuf2[i];
-    }
-    createCubiclyInterpolatedPlane(tbuf2, width, height, 8);
-    for(u32 i = 0; i < totalSize; i++){
-        tbuf[i] += tbuf2[i];
-    }
-    for(u32 i = 0; i < totalSize; i++){
-        tbuf[i] /= 4;
-    }
-
     u32 ctr = 0;
     for(u32 ct = 0; ct < 6; ct++){
+
+        createCubiclyInterpolatedPlane(tbuf2, width, height, 1);
+        for(u32 i = 0; i < totalSize; i++){
+            tbuf[i] = tbuf2[i];
+        }
+        createCubiclyInterpolatedPlane(tbuf2, width, height, 2);
+        for(u32 i = 0; i < totalSize; i++){
+            tbuf[i] += tbuf2[i];
+        }
+        createCubiclyInterpolatedPlane(tbuf2, width, height, 4);
+        for(u32 i = 0; i < totalSize; i++){
+            tbuf[i] += tbuf2[i];
+        }
+        createCubiclyInterpolatedPlane(tbuf2, width, height, 8);
+        for(u32 i = 0; i < totalSize; i++){
+            tbuf[i] += tbuf2[i];
+        }
+        for(u32 i = 0; i < totalSize; i++){
+            tbuf[i] /= 4;
+        }
+
+    
         for(u32 i = 0; i < totalSize; i++){
             buffer[ctr++] = tbuf[i] * 255;
         }
@@ -121,7 +136,9 @@ static bool readFileIntoBuffer(const s8* fileName, void* data, u32* fileLength){
         return false;
     }
     *fileLength = fileSize;
-    CloseHandle(file);
+    if(!CloseHandle(file)){
+        MessageBox(0, "Could not cloes file", "readFileIntoBuffer", 0);
+    }
     return true;
 }
 
@@ -135,7 +152,9 @@ static bool writeToFile(const s8* fileName, void* data, u32 dataSize){
         MessageBox(0, "Could not write to file", "writeToFile", 0);
         return false;
     }
-    CloseHandle(file);
+    if(!CloseHandle(file)){
+        MessageBox(0, "Could not cloes file", "readFileIntoBuffer", 0);
+    }
     return true;
 }
 
@@ -258,6 +277,18 @@ static Texture2D createTexture2D(const s8* fileName, u32 bytesPerPixel){
     u32 height = *(u32*)fileData;
     fileData += 4;
     Texture2D tex = createTexture2D(fileData, width, height, bytesPerPixel);
+    return tex;
+}
+
+static TextureCube createTextureCube(const s8* fileName, u32 bytesPerPixel){
+    u32 fileSize;
+    readFileIntoBuffer(fileName, tempStorageBuffer, &fileSize);
+    u8* fileData = tempStorageBuffer;
+    u32 width = *(u32*)fileData;
+    fileData += 4;
+    u32 height = *(u32*)fileData;
+    fileData += 4;
+    TextureCube tex = createTextureCube(fileData, width, height, bytesPerPixel);
     return tex;
 }
 
@@ -562,19 +593,7 @@ static void initializeSkyboxRenderer(){
     hr = d3d11Device->CreateBuffer(&bufferDesc, &constBufData, &skyboxRenderer.vertexConstBuffer);
     checkError(hr, "Error creating vertex constant buffer");
 
-
-    u8 sbTex[] = {
-        255, 0, 0, 255,
-        200, 150, 0, 255,
-        255, 255, 0, 255,
-        0, 255, 0, 255,
-        0, 0, 255, 255,
-        200, 50, 150, 255
-    };
-
-    generatePerlinNoiseCubePixels(tempStorageBuffer);
-
-    skyboxRenderer.defaultTexture = createTextureCube(tempStorageBuffer, 256, 256, 4);
+    skyboxRenderer.defaultTexture = createTextureCube("skybox.cubepix", 4);
     skyboxRenderer.currentTexture = skyboxRenderer.defaultTexture;
 }
 
@@ -1217,7 +1236,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     D3D11_RASTERIZER_DESC rasterizerDesc = {};
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
-    rasterizerDesc.CullMode = D3D11_CULL_BACK;
+    rasterizerDesc.CullMode = D3D11_CULL_NONE;
     rasterizerDesc.FrontCounterClockwise = false;
     rasterizerDesc.DepthBias = false;
     rasterizerDesc.DepthBiasClamp = 0;
@@ -1294,7 +1313,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.createAnimatedMesh = &createAnimatedMesh;
     gameState->osFunctions.createTexture2DFromFile = &createTexture2D;
     gameState->osFunctions.createTexture2DFromData = &createTexture2D;
-    gameState->osFunctions.createTexturedMesh = &createTexturedMesh;
+    gameState->osFunctions.createTexturedMeshFromFile = &createTexturedMesh;
+    gameState->osFunctions.createTexturedMeshFromData = &createTexturedMesh;
     gameState->osFunctions.allocateMemory = &allocateMemory;
     gameState->osFunctions.createAudioEmitter = &createAudioEmitter;
     gameState->osFunctions.updateAudioEmitterDynamics = &updateAudioEmitterDynamics;

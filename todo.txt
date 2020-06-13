@@ -2,7 +2,6 @@ FEATURE:
 mouse picking
 terrain generation and rendering
 instance rendering
-skybox rendering
 shadow mapping
 import fonts from .ttf .otf
 improve lighting
@@ -10,6 +9,7 @@ improve lighting
 BUG FIX:
 make text and canvas positioning scale with window
 handle updating resolution on window resize
+improve default skybox texture
 
 OPTIMIZATION:
 precompute camera projection * camera view matrices

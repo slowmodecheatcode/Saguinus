@@ -151,6 +151,7 @@ static bool guiButton(GameState* state, Vector2 position, const s8* text, f32 sc
     if(mp.x < position.x || mp.x > position.x + dim.x 
     || mp.y < position.y || mp.y > position.y + dim.y){
         addTextQuad(state, text, position, dim, Vector4(1), Vector4(0, 0, 1, 1), scale, buttonBorder);
+        state->mouseButtonTracking[MOUSE_BUTTON_LEFT]  = false;
     }else{
         if(state->mouseInputs[MOUSE_BUTTON_LEFT]){
             addTextQuad(state, text, position, dim, Vector4(1), Vector4(1, 0, 0, 1), scale, buttonBorder);
@@ -349,14 +350,16 @@ static void renderGame(GameState* state){
     Camera* cam = &state->camera;
     Player* p = &state->player;
     u32 tot = state->totalObstacles;
-    debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
-    debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
+    // debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
+    // debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
     debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
     for(u32 i = 0; i < tot; i++){
         Obstacle* o = &state->obstacles[i];
         debugCube(state, o->position, o->scale, o->color);
     }
     
+    addTexturedMeshToBuffer(state, &state->terrain, Vector3(0), Vector3(1), Quaternion());
+
     updateMeshAnimation(p->mesh.animation, state->deltaTime);
     state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
     // addTexturedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
@@ -436,7 +439,7 @@ static void initializeGameState(GameState* state){
         state->obstacles[i].xStartPosition = (i + 1) * 35;
         state->obstacles[i].position = Vector3(state->obstacles[i].xStartPosition, (randomU32() % 10) + 0.5, 0);
         state->obstacles[i].scale = Vector3(1);
-        state->obstacles[i].mesh = state->osFunctions.createTexturedMesh("suzanne.texmesh");
+        state->obstacles[i].mesh = state->osFunctions.createTexturedMeshFromFile("suzanne.texmesh");
         state->obstacles[i].mesh.texture = state->osFunctions.createTexture2DFromFile("suzanne.texpix", 4);
         state->obstacles[i].xVelocity = -((s32)randomU32() % 10) - 15;
         u32 max = -1;
@@ -453,6 +456,41 @@ static void initializeGameState(GameState* state){
     if(!state->osFunctions.readFileIntoBuffer("hiscore", &state->hiScore, &lll)){
         state->osFunctions.writeToFile("hiscore", &state->hiScore, sizeof(u32));
     }
+
+    u32 tWidth = 32;
+    u32 tHeight = 32;
+    u32 terVertSize = tHeight * tWidth * 8 * sizeof(f32);
+    u32 ctr = 0;
+    f32 *terrainVerts = (f32*)state->storage.tempMemoryBuffer;
+    u16 *terrainElms = (u16*)state->storage.tempMemoryBuffer + terVertSize;
+    for(u32 i = 0; i < tHeight; i++){
+        for(u32 j = 0; j < tWidth; j++){
+            terrainVerts[ctr++] = j - tWidth * 0.5;
+            terrainVerts[ctr++] = ((f32)randomU32() / (f32)MAX_U32);
+            terrainVerts[ctr++] = i - tHeight * 0.5;
+            terrainVerts[ctr++] = 0;
+            terrainVerts[ctr++] = 1;
+            terrainVerts[ctr++] = 0;
+            terrainVerts[ctr++] = (f32)j / (f32)tWidth;
+            terrainVerts[ctr++] = (f32)i / (f32)tHeight;
+        }
+    }
+
+    ctr = 0;
+    u32 totElmSize = (tWidth - 1) * (tHeight - 1) * 6 * sizeof(u16);
+    for(u32 i = 0; i < tHeight; i++){
+        for(u32 j = 0; j < tWidth - 1; j++){
+            terrainElms[ctr++] = (i * tWidth) + tWidth + j;
+            terrainElms[ctr++] = i * tWidth + j;
+            terrainElms[ctr++] = (i * tWidth + j) + 1;
+            terrainElms[ctr++] = (i * tWidth + j) + 1;
+            terrainElms[ctr++] = (i * tWidth) + tWidth + 1 + j;
+            terrainElms[ctr++] = (i * tWidth) + tWidth + j;
+        }
+    }
+
+    u16 terrainElms2[] = {0, 1, 2, 2, 3, 1};
+    state->terrain = state->osFunctions.createTexturedMeshFromData(terrainVerts, terVertSize, terrainElms, totElmSize);
 
     state->gameOver = false;
     state->isInitialized = true;
