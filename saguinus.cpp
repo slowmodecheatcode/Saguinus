@@ -358,7 +358,7 @@ static void renderGame(GameState* state){
         debugCube(state, o->position, o->scale, o->color);
     }
     
-    addTexturedMeshToBuffer(state, &state->terrain, Vector3(0), Vector3(1), Quaternion());
+    addTexturedMeshToBuffer(state, &state->terrain.mesh, Vector3(0), Vector3(1), Quaternion());
 
     updateMeshAnimation(p->mesh.animation, state->deltaTime);
     state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
@@ -413,7 +413,7 @@ static void initializeGameState(GameState* state){
     state->camera.projection = createPerspectiveProjection(70.0, (f32)state->windowDimenstion.x / (f32)state->windowDimenstion.y, 0.001, 1000.0);
 
     state->light = PointLight();
-    state->light.position = Vector3(5, 15, 15);
+    state->light.position = Vector3(5, 100, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
     
@@ -457,20 +457,120 @@ static void initializeGameState(GameState* state){
         state->osFunctions.writeToFile("hiscore", &state->hiScore, sizeof(u32));
     }
 
-    u32 tWidth = 32;
-    u32 tHeight = 32;
+    u32 tWidth = 256;
+    u32 tHeight = 256;
+    u32 tPosSize = tWidth * tHeight * sizeof(Vector3);
     u32 terVertSize = tHeight * tWidth * 8 * sizeof(f32);
     u32 ctr = 0;
     f32 *terrainVerts = (f32*)state->storage.tempMemoryBuffer;
     u16 *terrainElms = (u16*)state->storage.tempMemoryBuffer + terVertSize;
+    state->terrain.vertexPositions = (Vector3**)allocateLongTermMemory(state, sizeof(Vector3*) * tHeight);
+    for(u32 i = 0; i < tHeight; i++){
+        state->terrain.vertexPositions[i] = (Vector3*)allocateLongTermMemory(state, sizeof(Vector3) * tWidth);
+    }
+
     for(u32 i = 0; i < tHeight; i++){
         for(u32 j = 0; j < tWidth; j++){
-            terrainVerts[ctr++] = j - tWidth * 0.5;
-            terrainVerts[ctr++] = ((f32)randomU32() / (f32)MAX_U32);
-            terrainVerts[ctr++] = i - tHeight * 0.5;
-            terrainVerts[ctr++] = 0;
-            terrainVerts[ctr++] = 1;
-            terrainVerts[ctr++] = 0;
+            Vector3* pos = &state->terrain.vertexPositions[i][j];
+            pos->x = j - tWidth * 0.5;
+            pos->y = ((f32)randomU32() / (f32)MAX_U32) * 2;
+            pos->z = i - tHeight * 0.5;;
+        }
+    }
+
+    for(u32 i = 0; i < tHeight; i++){
+        for(u32 j = 0; j < tWidth; j++){
+            Vector3* pos = &state->terrain.vertexPositions[i][j];
+            Vector3 norm;
+
+            if(i == 0){
+                if(j == 0){
+                    Vector3* vrt = &state->terrain.vertexPositions[i][j + 1];
+                    Vector3* vlo = &state->terrain.vertexPositions[i + 1][j];
+                    norm = cross(*vrt - *pos, *vlo - *pos);
+                }else if(j == tWidth - 1){
+                    Vector3* vlt = &state->terrain.vertexPositions[i][j - 1];
+                    Vector3* vlo = &state->terrain.vertexPositions[i + 1][j];
+                    Vector3* vll = &state->terrain.vertexPositions[i + 1][j - 1];
+                    Vector3 n1 = cross(*vll - *vlt, *pos - *vlt);
+                    Vector3 n2 = cross(*pos - *vlo, *vlt - *vlo);
+                    norm = (n1 + n2) * 0.5;
+                }else{
+                    Vector3* vlt = &state->terrain.vertexPositions[i][j - 1];
+                    Vector3* vrt = &state->terrain.vertexPositions[i][j + 1];
+                    Vector3* vlo = &state->terrain.vertexPositions[i + 1][j];
+                    Vector3* vll = &state->terrain.vertexPositions[i + 1][j - 1];
+                    Vector3 n1 = cross(*vll - *vlt, *pos - *vlt);
+                    Vector3 n2 = cross(*pos - *vlo, *vlt - *vlo);
+                    Vector3 n3 = cross(*vlo - *pos, *vrt - *pos);
+                    norm = (n1 + n2 + n3) * 0.3333333333;
+                }
+            }else if(i == tHeight - 1){
+                if(j == 0){
+                    Vector3* vrt = &state->terrain.vertexPositions[i][j + 1];
+                    Vector3* vhi = &state->terrain.vertexPositions[i - 1][j];
+                    Vector3* vhr = &state->terrain.vertexPositions[i - 1][j + 1];
+                    Vector3 n1 = cross(*pos - *vhi, *vhr - *vhi);
+                    Vector3 n2 = cross(*vhr - *vrt, *pos - *vrt);
+                    norm = (n1 + n2) * 0.5;
+                }else if(j == tWidth - 1){
+                    Vector3* vlt = &state->terrain.vertexPositions[i][j - 1];
+                    Vector3* vhi = &state->terrain.vertexPositions[i - 1][j];
+                    norm = cross(*vhi - *pos, *vlt - *pos);
+                }else{
+                    Vector3* vlt = &state->terrain.vertexPositions[i][j - 1];
+                    Vector3* vrt = &state->terrain.vertexPositions[i][j + 1];
+                    Vector3* vhi = &state->terrain.vertexPositions[i - 1][j];
+                    Vector3* vhr = &state->terrain.vertexPositions[i - 1][j + 1];
+                    Vector3 n1 = cross(*vhi - *pos, *vlt - *pos);
+                    Vector3 n2 = cross(*pos - *vhi, *vhr - *vhi);
+                    Vector3 n3 = cross(*vhr - *vrt, *pos - *vrt);
+                    norm = (n1 + n2 + n3) * 0.3333333333;
+                }
+            }else{
+                if(j == 0){
+                    Vector3* vrt = &state->terrain.vertexPositions[i][j + 1];
+                    Vector3* vlo = &state->terrain.vertexPositions[i + 1][j];
+                    Vector3* vhi = &state->terrain.vertexPositions[i - 1][j];
+                    Vector3* vhr = &state->terrain.vertexPositions[i - 1][j + 1];
+                    Vector3 n1 = cross(*pos - *vhi, *vhr - *vhi);
+                    Vector3 n2 = cross(*vhr - *vrt, *pos - *vrt);
+                    Vector3 n3 = cross(*vrt - *pos, *vlo - *pos);
+                    norm = (n1 + n2 + n3) * 0.3333333333;
+                }else if(j == tWidth - 1){
+                    Vector3* vlt = &state->terrain.vertexPositions[i][j - 1];
+                    Vector3* vll = &state->terrain.vertexPositions[i + 1][j - 1];
+                    Vector3* vhi = &state->terrain.vertexPositions[i - 1][j];
+                    Vector3* vlo = &state->terrain.vertexPositions[i + 1][j];
+                    Vector3 n1 = cross(*vhi - *pos, *vlt - *pos);
+                    Vector3 n2 = cross(*vll - *vlt, *pos - *vlt);
+                    Vector3 n3 = cross(*pos - *vlo, *vll - *vlo);
+                    norm = (n1 + n2 + n3) * 0.3333333333;
+                }else{
+                    Vector3* vlt = &state->terrain.vertexPositions[i][j - 1];
+                    Vector3* vll = &state->terrain.vertexPositions[i + 1][j - 1];
+                    Vector3* vhi = &state->terrain.vertexPositions[i - 1][j];
+                    Vector3* vlo = &state->terrain.vertexPositions[i + 1][j];
+                    Vector3* vhr = &state->terrain.vertexPositions[i - 1][j + 1];
+                    Vector3* vrt = &state->terrain.vertexPositions[i][j + 1];
+                    Vector3 n1 = cross(*vll - *vlt, *pos - *vlt);
+                    Vector3 n2 = cross(*vhi - *pos, *vlt - *pos);
+                    Vector3 n3 = cross(*pos - *vhi, *vhr - *vhi);
+                    Vector3 n4 = cross(*vhr - *vrt, *pos - *vrt);
+                    Vector3 n5 = cross(*vrt - *pos, *vlo - *pos);
+                    Vector3 n6 = cross(*pos - *vlo, *vll - *vlo);
+                    norm = (n1 + n2 + n3 + n4 + n5 + n6) * (1.0/6.0);
+                }
+            }
+
+            norm = normalOf(norm);
+
+            terrainVerts[ctr++] = pos->x;
+            terrainVerts[ctr++] = pos->y;
+            terrainVerts[ctr++] = pos->z;
+            terrainVerts[ctr++] = norm.x;
+            terrainVerts[ctr++] = norm.y;
+            terrainVerts[ctr++] = norm.z;
             terrainVerts[ctr++] = (f32)j / (f32)tWidth;
             terrainVerts[ctr++] = (f32)i / (f32)tHeight;
         }
@@ -490,8 +590,8 @@ static void initializeGameState(GameState* state){
     }
 
     u16 terrainElms2[] = {0, 1, 2, 2, 3, 1};
-    state->terrain = state->osFunctions.createTexturedMeshFromData(terrainVerts, terVertSize, terrainElms, totElmSize);
-
+    state->terrain.mesh = state->osFunctions.createTexturedMeshFromData(terrainVerts, terVertSize, terrainElms, totElmSize);
+    state->terrain.mesh.texture = state->osFunctions.createTexture2DFromFile("terrain.texpix", 4);
     state->gameOver = false;
     state->isInitialized = true;
 }

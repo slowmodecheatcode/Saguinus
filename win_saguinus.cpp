@@ -1236,7 +1236,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     D3D11_RASTERIZER_DESC rasterizerDesc = {};
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
-    rasterizerDesc.CullMode = D3D11_CULL_NONE;
+    rasterizerDesc.CullMode = D3D11_CULL_BACK;
     rasterizerDesc.FrontCounterClockwise = false;
     rasterizerDesc.DepthBias = false;
     rasterizerDesc.DepthBiasClamp = 0;

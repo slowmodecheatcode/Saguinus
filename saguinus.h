@@ -249,6 +249,15 @@ struct Obstacle {
     f32 xStartPosition;
 };
 
+struct Terrain {
+    Vector3 position;
+    Vector3 scale;
+    u32 width;
+    u32 height;
+    Vector3** vertexPositions;
+    TexturedMesh mesh;
+};
+
 struct Player {
     Vector3 position;
     Vector3 scale;
@@ -281,7 +290,7 @@ struct GameState {
     Camera camera;
     PointLight light;
 
-    TexturedMesh terrain;
+    Terrain terrain;
 
     Obstacle obstacles[MAX_OBSTACLES];
     Player player;
