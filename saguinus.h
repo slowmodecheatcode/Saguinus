@@ -216,7 +216,7 @@ struct OSFunctions {
     Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
     Texture2D (*createTexture2DFromData)(u8* data, u32 width, u32 height, u32 bytesPerPixel);
     TexturedMesh (*createTexturedMeshFromFile)(const s8* fileName);
-    TexturedMesh (*createTexturedMeshFromData)(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize);
+    TexturedMesh (*createTexturedMeshFromData)(f32* vertexData, u32 vertexDataSize, u32* indexData, u32 indexDataSize);
     AnimatedMesh (*createAnimatedMesh)(const s8* fileName);
     MeshAnimation (*createMeshAnimation)(const s8* fileName);
     AudioEmitter (*createAudioEmitter)();
@@ -254,7 +254,7 @@ struct Terrain {
     Vector3 scale;
     u32 width;
     u32 height;
-    Vector3** vertexPositions;
+    f32** heightmap;
     TexturedMesh mesh;
 };
 

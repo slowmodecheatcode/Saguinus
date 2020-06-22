@@ -13,19 +13,6 @@ static void checkError(HRESULT err, LPCSTR msg){
     }
 }
 
-static f32 cubicInterpolate (f32 p[4], f32 x) {
-	return p[1] + 0.5 * x*(p[2] - p[0] + x*(2.0*p[0] - 5.0*p[1] + 4.0*p[2] - p[3] + x*(3.0*(p[1] - p[2]) + p[3] - p[0])));
-}
-
-static f32 bicubicInterpolate (f32 p[4][4], f32 x, f32 y) {
-	f32 arr[4];
-	arr[0] = cubicInterpolate(p[0], y);
-	arr[1] = cubicInterpolate(p[1], y);
-	arr[2] = cubicInterpolate(p[2], y);
-	arr[3] = cubicInterpolate(p[3], y);
-	return cubicInterpolate(arr, x);
-}
-
 static void createCubiclyInterpolatedPlane(f32* buffer, u32 width, u32 height, u32 freq){
     u32 dw = width / freq;
     u32 dh = height / freq;
@@ -688,17 +675,17 @@ static void renderDebugBuffer(DebugBuffer* buffer, Camera* camera){
     debugRenderer.currentIndexCount = 36;
 }
 
-static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
-    u32 totalIndices = indexDataSize / sizeof(u16);
+static TexturedMesh createTexturedMesh(f32* vertexData, u32 vertexDataSize, u32* indexData, u32 indexDataSize){
+    u32 totalIndices = indexDataSize / sizeof(u32);
     u32 totalVertsInBuffer = texturedMeshRenderer.vertexDataUsed / (sizeof(f32) * 8);
-    u32 indexOffset = texturedMeshRenderer.indexDataUsed / sizeof(u16);
+    u32 indexOffset = texturedMeshRenderer.indexDataUsed / sizeof(u32);
 
     D3D11_MAPPED_SUBRESOURCE vertData;
     D3D11_MAPPED_SUBRESOURCE indData;                   
     d3d11Context->Map(texturedMeshRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
     d3d11Context->Map(texturedMeshRenderer.indexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &indData);
     f32* vdat = (f32*)vertData.pData;
-    u16* idat = (u16*)indData.pData;
+    u32* idat = (u32*)indData.pData;
     vdat += texturedMeshRenderer.vertexDataUsed / sizeof(f32);
     idat += indexOffset;
 
@@ -740,13 +727,13 @@ static TexturedMesh createTexturedMesh(const s8* fileName){
     fileData += 4;
     f32* vts = (f32*)fileData;
     fileData += vsz;
-    u16* ids = (u16*)fileData;
+    u32* ids = (u32*)fileData;
     TexturedMesh m = createTexturedMesh(vts, vsz, ids, isz);
     m.texture = texturedMeshRenderer.defaultTexture;
     return m;
 }
 
-static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u16* indexData, u32 indexDataSize){
+static AnimatedMesh createAnimatedMesh(f32* vertexData, u32 vertexDataSize, u32* indexData, u32 indexDataSize){
     AnimatedMesh mesh = {};
     u32 totalVertices = vertexDataSize >> 6;
 
@@ -808,7 +795,7 @@ static AnimatedMesh createAnimatedMesh(const s8* fileName){
     tsbPtr += 4;
     f32* vData = (f32*)tsbPtr;
     tsbPtr += vSize;
-    u16* iData = (u16*)tsbPtr;
+    u32* iData = (u32*)tsbPtr;
 
     AnimatedMesh mesh = createAnimatedMesh(vData, vSize, iData, iSize);
 
@@ -993,7 +980,7 @@ static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, Po
     d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
     d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
     d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
     d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
     d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
 

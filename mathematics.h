@@ -76,6 +76,30 @@ static Vector3 add(Vector3& v1, Vector3& v2);
 static Matrix4 multiply(Matrix4& m1, Matrix4& m2);
 static Vector3 scale(Vector3& v1, f32 amt);
 
+static f32 linearInterpolate(f32 s, f32 e, f32 t){
+    return s + (e - s) * t;
+}
+
+static f32 bilinearInterpolate(f32 tl, f32 tr, f32 bl, f32 br, f32 x, f32 y){
+    f32 x1 = linearInterpolate(tl, tr, x);
+    f32 x2 = linearInterpolate(bl, br, x);
+    return linearInterpolate(x1, x2, y);
+}
+
+static f32 cubicInterpolate (f32 p[4], f32 x) {
+	return p[1] + 0.5 * x*(p[2] - p[0] + x*(2.0*p[0] - 5.0*p[1] + 4.0*p[2] - p[3] + x*(3.0*(p[1] - p[2]) + p[3] - p[0])));
+}
+
+static f32 bicubicInterpolate (f32 p[4][4], f32 x, f32 y) {
+	f32 arr[4];
+	arr[0] = cubicInterpolate(p[0], y);
+	arr[1] = cubicInterpolate(p[1], y);
+	arr[2] = cubicInterpolate(p[2], y);
+	arr[3] = cubicInterpolate(p[3], y);
+	return cubicInterpolate(arr, x);
+}
+
+
 static f32 absoluteValue(f32 v){
     return v < 0 ? -v : v;
 }
