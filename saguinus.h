@@ -261,11 +261,16 @@ struct Terrain {
 struct Player {
     Vector3 position;
     Vector3 scale;
+    Vector2 forwardXZ;
     Quaternion orientation;
     AnimatedMesh mesh;
     MeshAnimation squatAnimation;
     MeshAnimation runAnimation;
     f32 yVelocity;
+    f32 turnAngle;
+    f32 turnAmount;
+    f32 cameraHeight;
+    f32 cameraZoom;
     bool isJumping;
 };
 
@@ -299,6 +304,7 @@ struct GameState {
 
     Vector4 clearColor;
     Vector2 mousePosition;
+    Vector2 mousePositionDelta;
 
     Vector2 windowDimenstion;
     Vector2 gameResolution;

@@ -261,8 +261,48 @@ static Quaternion operator*(Quaternion& q, f32 amt){
     return scale(q, amt);
 }
 
+static f32 length(Vector2 v){
+    return sqrt(v.x * v.x + v.y * v.y);
+}
+
 static f32 length(Vector3 v){
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+static void normalize(Vector2* v){
+    f32 len = length(*v);
+    if(len != 0){
+        v->x /= len;
+        v->y /= len;
+    }else{
+        v->x = 0;
+        v->y = 0;
+    }
+}
+
+static void normalize(Vector3* v){
+    f32 len = length(*v);
+    if(len != 0){
+        v->x /= len;
+        v->y /= len;
+        v->z /= len;
+    }else{
+        v->x = 0;
+        v->y = 0;
+        v->z = 0;
+    }
+}
+
+static Vector2 normalOf(Vector2 v){
+    f32 len = length(v);
+    if(len != 0){
+        v.x /= len;
+        v.y /= len;
+    }else{
+        v.x = 0;
+        v.y = 0;
+    }
+    return v;
 }
 
 static Vector3 normalOf(Vector3 v){

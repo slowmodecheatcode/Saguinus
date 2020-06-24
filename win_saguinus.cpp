@@ -1068,10 +1068,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             f32 nmy = windowHeight - mousePosition.y;
             if(mousePosition.x != gameState->mousePosition.x || nmy != gameState->mousePosition.y){
                 gameState->mousePosition = Vector2(mousePosition.x, nmy);
-                gameState->updateCamera = true;
-                if(gameState->mode == GameMode::GAME_MODE_DEBUG){
-                    SetCursorPos(screenCenter.x, screenCenter.y);
-                }
+                gameState->updateCamera = true;          
+                SetCursorPos(screenCenter.x, screenCenter.y);
+                
             }
             
             break;

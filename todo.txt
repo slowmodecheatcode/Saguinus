@@ -1,6 +1,6 @@
 FEATURE:
 mouse picking
-terrain generation and rendering
+infinite terrain
 instance rendering
 shadow mapping
 import fonts from .ttf .otf

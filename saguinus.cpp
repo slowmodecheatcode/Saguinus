@@ -382,40 +382,60 @@ static void updatePlayer(GameState* state){
     Player* p = &state->player;
     f32 gravity = state->gravity;
     f32 dt = state->deltaTime;
+    Camera* cam = &state->camera;
+
+    
+
+    p->turnAmount = state->mousePositionDelta.x * dt * cam->mouseSensitivity;
+    p->turnAngle += p->turnAmount;
+
+    rotate(&p->orientation, Vector3(0, -1, 0), p->turnAmount);
+
+    p->forwardXZ = Vector2(sin(p->turnAngle), cos(p->turnAngle));
+    Vector2 rgtVec = Vector2(sin(p->turnAngle + HALF_PI), cos(p->turnAngle + HALF_PI));
+    normalize(&p->forwardXZ);
 
     f32 y = getVerticalPositionInTerrain(&state->terrain, Vector2(p->position.x, p->position.z));
-    p->position.y = y;
+    
 
     if(keyInputs[c->KEY_D]){
-        p->position.x += dt * 10;
+        p->position.x -= rgtVec.x * dt * 10;
+        p->position.z += rgtVec.y * dt * 10;
     }
     if(keyInputs[c->KEY_A]){
-        p->position.x -= dt * 10;
+        p->position.x += rgtVec.x * dt * 10;
+        p->position.z -= rgtVec.y * dt * 10;
     }
     if(keyInputs[c->KEY_W]){
-        p->position.z -= dt * 10;
+        p->position.x -= p->forwardXZ.x * dt * 10;
+        p->position.z += p->forwardXZ.y * dt * 10;
     }
     if(keyInputs[c->KEY_S]){
-        p->position.z += dt * 10;
+        p->position.x += p->forwardXZ.x * dt * 10;
+        p->position.z -= p->forwardXZ.y * dt * 10;
     }
 
-    // if(!p->isJumping && keyPressedOnce(state, c->KEY_W)){
-    //     p->yVelocity = 50;
-    //     p->isJumping = true;
-    //     p->mesh.animation = &p->squatAnimation;
-    // }
+    
 
-    // if(p->isJumping){
-    //     p->yVelocity += gravity * dt;
-    //     p->position.y += p->yVelocity * dt;
-    //     if(p->position.y < 0){
-    //         p->position = 0;
-    //         p->isJumping = false;
-    //         p->mesh.animation = &p->runAnimation;
-    //     }else if(keyInputs[c->KEY_S]){
-    //         p->yVelocity -= 5;
-    //     }
-    // }
+    if(!p->isJumping && keyPressedOnce(state, c->KEY_SPACE)){
+        p->yVelocity = 50;
+        p->isJumping = true;
+        p->mesh.animation = &p->squatAnimation;
+    }
+
+    if(p->isJumping){
+        p->yVelocity += gravity * dt;
+        p->position.y += p->yVelocity * dt;
+        if(p->position.y < y){
+            p->position.y = y;
+            p->isJumping = false;
+            p->mesh.animation = &p->runAnimation;
+        }else if(keyInputs[c->KEY_S]){
+            p->yVelocity -= 5;
+        }
+    }else{
+        p->position.y = y;
+    }
    
 }
 
@@ -423,24 +443,13 @@ static void renderGame(GameState* state){
     Camera* cam = &state->camera;
     Player* p = &state->player;
     u32 tot = state->totalObstacles;
-    // debugCube(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.8, 0.5, 0.2, 1));
-    // debugBox(state, Vector3(0, -1, 0), Vector3(100, 1, 10), Vector4(0.4, 0.25, 0.1, 1), 0.25);
+
     debugCube(state, state->light.position, Vector3(0.25), Vector4(0.9, 0.9, 1, 1));
-    for(u32 i = 0; i < tot; i++){
-        Obstacle* o = &state->obstacles[i];
-        debugCube(state, o->position, o->scale, o->color);
-    }
     
     addTexturedMeshToBuffer(state, &state->terrain.mesh, state->terrain.position, Vector3(1), Quaternion());
 
     updateMeshAnimation(p->mesh.animation, state->deltaTime);
     state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
-
-    s8 buf[64];
-    createDebugString(buf, "Score: %i", state->score);
-    addTextToCanvas(state, buf, Vector2(450, 650), 3, Vector4(0, 0, 0, 1));
-    createDebugString(buf, "Hi-Score: %i", state->hiScore);
-    addTextToCanvas(state, buf, Vector2(750, 650), 2, Vector4(0, 0, 0, 1));
 }
 
 static void resetGame(GameState* state){
@@ -492,7 +501,6 @@ static void initializeGameState(GameState* state){
     state->gameResolution = Vector2(800, 450);
 
     state->player.orientation = Quaternion();
-    rotate(&state->player.orientation, Vector3(0, 1, 0), HALF_PI);
     state->player.scale = Vector3(1);
     state->player.mesh = state->osFunctions.createAnimatedMesh("character.animesh");
     state->gravity = -100;
@@ -670,19 +678,31 @@ extern "C" void updateGameState(GameState* state){
     Camera* cam = &state->camera;
     InputCodes* c = &state->inputCodes;
     Player* p = &state->player;
+    f32 deltaTime = state->deltaTime;
 
+    state->mousePositionDelta = Vector2(state->mousePosition.x - state->windowDimenstion.x * 0.5, 
+                                        state->mousePosition.y - state->windowDimenstion.y * 0.5);
     switch (state->mode) {
         case GameMode::GAME_MODE_DEBUG : { 
             updateCameraWithMouse(state);
             updateCameraWithKeyboard(state);
             updateCameraWithGamepad(state);
+            updateCameraView(&state->camera);
             renderGame(state);
+            
             break;
         }
         case GameMode::GAME_MODE_PLAYING : {
             updatePlayer(state);
-            updateObstacles(state);
+
+            p->cameraHeight += (s32)state->mousePositionDelta.y * deltaTime;
             
+            cam->position = p->position;
+            cam->position.x += p->forwardXZ.x * 10;
+            cam->position.y = p->cameraHeight;
+            cam->position.z += -p->forwardXZ.y * 10;
+            lookAt(cam, cam->position, p->position);
+
             renderGame(state);
             state->gameTime += state->deltaTime;
             state->score = (state->gameTime * 100);
@@ -708,15 +728,15 @@ extern "C" void updateGameState(GameState* state){
     }
 
     if(keyPressedOnce(state, c->KEY_B)){
-        if(state->mode != GameMode::GAME_MODE_DEBUG){
-            state->mode = GameMode::GAME_MODE_DEBUG;
+        if(state->mode == GameMode::GAME_MODE_DEBUG){
+            state->mode = GameMode::GAME_MODE_PLAYING;
         }else{
             initializeGameState(state);
-            state->mode = GameMode::GAME_MODE_INTRO;
+            state->mode = GameMode::GAME_MODE_DEBUG;
         }
     }
 
-    updateCameraView(&state->camera);
+
     //lookAt(&state->camera, Vector3(-20, 40, -50), Vector3(0));
     //renderGame(state);
 
