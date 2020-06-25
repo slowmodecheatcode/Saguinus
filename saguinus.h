@@ -14,6 +14,8 @@
 #define MAX_TEXTURED_MESHES 256
 #define MAX_GUI_ITEMS 256
 
+#define MIN_CAM_HEIGHT_FROM_TERRAIN 3
+
 enum GameMode {
     GAME_MODE_INTRO,
     GAME_MODE_PLAYING,
@@ -21,6 +23,13 @@ enum GameMode {
     GAME_MODE_DEBUG,
     
     GAME_MODE_TOTAL,
+};
+
+enum GameInputMode {
+    INPUT_MODE_KB_MOUSE,
+    INPUT_MODE_GAMEPAD,
+
+    INPUT_MODE_TOTAL
 };
 
 struct InputCodes {
@@ -310,9 +319,11 @@ struct GameState {
     Vector2 gameResolution;
 
     GameMode mode;
+    GameInputMode inputMode;
 
     bool keyTracking[128];
     bool mouseButtonTracking[4];
+    bool gamepadButtonTracking[16];
 
     s8* soundBuffer1;
     s8* soundBuffer2;

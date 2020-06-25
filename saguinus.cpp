@@ -296,6 +296,17 @@ static bool keyPressedOnce(GameState* state, u32 key){
     return false;
 }
 
+static bool gamepadButtonPressedOnce(GameState* state, u32 button){
+    bool* buttons = state->gamepad1.buttons;
+    if(buttons[button] && !state->gamepadButtonTracking[button]){
+        state->gamepadButtonTracking[button] = true;
+        return true;
+    }else if(!buttons[button]){
+        state->gamepadButtonTracking[button] = false;
+    }
+    return false;
+}
+
 static void updateObstacles(GameState* state){
     Player* p = &state->player;
     u32 tot = state->totalObstacles;
@@ -383,41 +394,55 @@ static void updatePlayer(GameState* state){
     f32 gravity = state->gravity;
     f32 dt = state->deltaTime;
     Camera* cam = &state->camera;
-
-    
-
-    p->turnAmount = state->mousePositionDelta.x * dt * cam->mouseSensitivity;
-    p->turnAngle += p->turnAmount;
-
-    rotate(&p->orientation, Vector3(0, -1, 0), p->turnAmount);
-
-    p->forwardXZ = Vector2(sin(p->turnAngle), cos(p->turnAngle));
-    Vector2 rgtVec = Vector2(sin(p->turnAngle + HALF_PI), cos(p->turnAngle + HALF_PI));
-    normalize(&p->forwardXZ);
+    Gamepad* gamepad1 = &state->gamepad1;
 
     f32 y = getVerticalPositionInTerrain(&state->terrain, Vector2(p->position.x, p->position.z));
+
+    p->forwardXZ = Vector2(sin(p->turnAngle), cos(p->turnAngle));
+    normalize(&p->forwardXZ);
+    Vector2 rgtVec = Vector2(sin(p->turnAngle + HALF_PI), cos(p->turnAngle + HALF_PI));
+    normalize(&rgtVec);
+    switch(state->inputMode){
+        case INPUT_MODE_KB_MOUSE :{
+            p->turnAmount = state->mousePositionDelta.x * dt * cam->mouseSensitivity;
+            
+            if(keyInputs[c->KEY_D]){
+                p->position.x -= rgtVec.x * dt * 10;
+                p->position.z += rgtVec.y * dt * 10;
+            }
+            if(keyInputs[c->KEY_A]){
+                p->position.x += rgtVec.x * dt * 10;
+                p->position.z -= rgtVec.y * dt * 10;
+            }
+            if(keyInputs[c->KEY_W]){
+                p->position.x -= p->forwardXZ.x * dt * 10;
+                p->position.z += p->forwardXZ.y * dt * 10;
+            }
+            if(keyInputs[c->KEY_S]){
+                p->position.x += p->forwardXZ.x * dt * 10;
+                p->position.z -= p->forwardXZ.y * dt * 10;
+            }
+            break;
+        }
+        case INPUT_MODE_GAMEPAD :{
+            p->turnAmount = gamepad1->rightStickX * dt;
+            p->cameraHeight += gamepad1->rightStickY * dt * 5;
+
+            p->position.x -= p->forwardXZ.x * dt * gamepad1->leftStickY * 10;
+            p->position.z += p->forwardXZ.y * dt * gamepad1->leftStickY * 10;
+            p->position.x -= rgtVec.x * dt * gamepad1->leftStickX * 10;
+            p->position.z += rgtVec.y * dt * gamepad1->leftStickX * 10;
+            break;
+        }
+    }
+
+    p->turnAngle += p->turnAmount;
+    
+    
+    rotate(&p->orientation, Vector3(0, -1, 0), p->turnAmount);
     
 
-    if(keyInputs[c->KEY_D]){
-        p->position.x -= rgtVec.x * dt * 10;
-        p->position.z += rgtVec.y * dt * 10;
-    }
-    if(keyInputs[c->KEY_A]){
-        p->position.x += rgtVec.x * dt * 10;
-        p->position.z -= rgtVec.y * dt * 10;
-    }
-    if(keyInputs[c->KEY_W]){
-        p->position.x -= p->forwardXZ.x * dt * 10;
-        p->position.z += p->forwardXZ.y * dt * 10;
-    }
-    if(keyInputs[c->KEY_S]){
-        p->position.x += p->forwardXZ.x * dt * 10;
-        p->position.z -= p->forwardXZ.y * dt * 10;
-    }
-
-    
-
-    if(!p->isJumping && keyPressedOnce(state, c->KEY_SPACE)){
+    if(!p->isJumping && (keyPressedOnce(state, c->KEY_SPACE) || gamepadButtonPressedOnce(state, c->GAMEPAD_A))){
         p->yVelocity = 50;
         p->isJumping = true;
         p->mesh.animation = &p->squatAnimation;
@@ -495,11 +520,14 @@ static void initializeGameState(GameState* state){
     state->light.position = Vector3(5, 100, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
-    
-
     state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
     state->gameResolution = Vector2(800, 450);
 
+    state->player.forwardXZ = Vector2(0, 1);
+    state->player.turnAmount = 0;
+    state->player.turnAngle = 0;
+    state->player.cameraZoom = 10;
+    state->player.cameraHeight = 5;
     state->player.orientation = Quaternion();
     state->player.scale = Vector3(1);
     state->player.mesh = state->osFunctions.createAnimatedMesh("character.animesh");
@@ -666,6 +694,7 @@ static void initializeGameState(GameState* state){
 
     state->terrain.mesh = state->osFunctions.createTexturedMeshFromData(terrainVerts, terVertSize, terrainElms, totElmSize);
     state->terrain.mesh.texture = state->osFunctions.createTexture2DFromFile("terrain.texpix", 4);
+    state->inputMode = INPUT_MODE_KB_MOUSE;
     state->gameOver = false;
     state->isInitialized = true;
 }
@@ -697,10 +726,19 @@ extern "C" void updateGameState(GameState* state){
 
             p->cameraHeight += (s32)state->mousePositionDelta.y * deltaTime;
             
+            p->cameraZoom -= state->mouseScrollDelta * 2;
+            if(p->cameraZoom < 1){
+                p->cameraZoom = 1;
+            }
+            
             cam->position = p->position;
-            cam->position.x += p->forwardXZ.x * 10;
-            cam->position.y = p->cameraHeight;
-            cam->position.z += -p->forwardXZ.y * 10;
+            cam->position.x += p->forwardXZ.x * p->cameraZoom;
+            cam->position.z += -p->forwardXZ.y * p->cameraZoom;
+            f32 y = getVerticalPositionInTerrain(&state->terrain, Vector2(cam->position.x, cam->position.z));
+            if(p->cameraHeight < MIN_CAM_HEIGHT_FROM_TERRAIN){
+                p->cameraHeight = MIN_CAM_HEIGHT_FROM_TERRAIN;
+            }
+            cam->position.y = y + p->cameraHeight;
             lookAt(cam, cam->position, p->position);
 
             renderGame(state);
@@ -727,7 +765,7 @@ extern "C" void updateGameState(GameState* state){
         }
     }
 
-    if(keyPressedOnce(state, c->KEY_B)){
+    if(keyPressedOnce(state, c->KEY_B) || gamepadButtonPressedOnce(state, c->GAMEPAD_BACK)){
         if(state->mode == GameMode::GAME_MODE_DEBUG){
             state->mode = GameMode::GAME_MODE_PLAYING;
         }else{
@@ -743,4 +781,6 @@ extern "C" void updateGameState(GameState* state){
 
     debugPrint(state, "debug mode:%b", state->mode == GameMode::GAME_MODE_DEBUG);
     debugPrint(state, "delta time: %f4", state->deltaTime);
+
+    state->mouseScrollDelta = 0;
 }
