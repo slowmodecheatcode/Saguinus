@@ -1335,7 +1335,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         if(XInputGetState(gamepad1.index, &gamepad1.state) == ERROR_SUCCESS 
         && gamepad1.state.dwPacketNumber != gamepad1.lastPacket){
-            gameState->inputMode = INPUT_MODE_GAMEPAD;
+            //gameState->inputMode = INPUT_MODE_GAMEPAD;
 
             gameState->gamepad1.leftStickX = (f32)gamepad1.state.Gamepad.sThumbLX / GAMEPAD_STICK_MAX;
             gameState->gamepad1.leftStickY = (f32)gamepad1.state.Gamepad.sThumbLY / GAMEPAD_STICK_MAX;

@@ -1,12 +1,13 @@
 FEATURE:
-mouse picking
 infinite terrain
 instance rendering
+mouse picking
 shadow mapping
-import fonts from .ttf .otf
 improve lighting
+import fonts from .ttf .otf
 
 BUG FIX:
+fix skybox twitching
 make text and canvas positioning scale with window
 handle updating resolution on window resize
 improve default skybox texture
@@ -23,5 +24,5 @@ CLEANUP:
 organize mathematics.h
 combine VertexOutput and PixelInput structs in shaders
 possibly unify renderer initialization code
-
+everything
 

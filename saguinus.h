@@ -15,6 +15,7 @@
 #define MAX_GUI_ITEMS 256
 
 #define MIN_CAM_HEIGHT_FROM_TERRAIN 3
+#define TOTAL_TERRAINS 4
 
 enum GameMode {
     GAME_MODE_INTRO,
@@ -261,8 +262,7 @@ struct Obstacle {
 struct Terrain {
     Vector3 position;
     Vector3 scale;
-    u32 width;
-    u32 height;
+    u32 size;
     f32** heightmap;
     TexturedMesh mesh;
 };
@@ -304,7 +304,8 @@ struct GameState {
     Camera camera;
     PointLight light;
 
-    Terrain terrain;
+    Terrain terrain[TOTAL_TERRAINS];
+    Terrain *centerTerrain;
 
     Obstacle obstacles[MAX_OBSTACLES];
     Player player;
