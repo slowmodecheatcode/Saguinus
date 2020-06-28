@@ -221,6 +221,7 @@ struct OSFunctions {
     void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
     void (*setMasterAudioVolume)(f32 v);
     void (*renderAnimatedMesh)(AnimatedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation);
+    void (*updateTexturedMeshVertices)(TexturedMesh* mesh, f32* vertices, u32 vertSize);
     bool (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
     bool (*writeToFile)(const s8* fileName, void* data, u32 dataSize);
     Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
@@ -260,11 +261,10 @@ struct Obstacle {
 };
 
 struct Terrain {
-    Vector3 position;
-    Vector3 scale;
-    u32 size;
-    f32** heightmap;
+    Vector2 centerXZ;
     TexturedMesh mesh;
+    Vector3* vertices;
+    u32 size;
 };
 
 struct Player {
@@ -283,9 +283,8 @@ struct Player {
     bool isJumping;
 };
 
-#define MAX_OBSTACLES 256
-
 struct GameState {
+    f32 noise[256*256];
     CanvasBuffer canvasBuffer;
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
@@ -304,10 +303,8 @@ struct GameState {
     Camera camera;
     PointLight light;
 
-    Terrain terrain[TOTAL_TERRAINS];
-    Terrain *centerTerrain;
+    Terrain terrain;
 
-    Obstacle obstacles[MAX_OBSTACLES];
     Player player;
 
     Gamepad gamepad1;

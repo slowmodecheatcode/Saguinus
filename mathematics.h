@@ -127,6 +127,10 @@ static Vector3 add(Vector3& v1, Vector3& v2){
     return Vector3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
 }
 
+static Vector2 sub(Vector2& v1, Vector2& v2){
+    return Vector2(v1.x - v2.x, v1.y - v2.y);
+}
+
 static Vector3 sub(Vector3& v1, Vector3& v2){
     return Vector3(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z);
 }
@@ -227,6 +231,10 @@ static void operator-=(Vector4& v1, Vector4& v2){
     v1.y -= v2.y;
     v1.z -= v2.z;
     v1.w -= v2.w;
+}
+
+static Vector2 operator-(Vector2& v1, Vector2& v2){
+    return sub(v1, v2);
 }
 
 static Vector3 operator-(Vector3& v1, Vector3& v2){

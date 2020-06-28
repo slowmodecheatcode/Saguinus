@@ -918,6 +918,20 @@ static void renderAnimatedMesh(AnimatedMesh* mesh, Vector3 position, Vector3 sca
     addTexturedMeshToBuffer(gameState, &mesh->mesh, position, scale, orientation);
 }
 
+static void updateTexturedMeshVertices(TexturedMesh* mesh, f32* vertices, u32 vertSize){
+    D3D11_MAPPED_SUBRESOURCE vertData;            
+    d3d11Context->Map(texturedMeshRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
+    f32* vdat = (f32*)vertData.pData;
+    vdat += mesh->vertexBufferOffset / sizeof(f32);
+
+    u32 vertFloatSize = vertSize * sizeof(f32);
+    for(u32 i = 0; i < vertFloatSize; i++){
+        vdat[i] = vertices[i];
+    }
+
+    d3d11Context->Unmap(texturedMeshRenderer.vertexBuffer, 0);
+}
+
 static void renderCanvasBuffer(CanvasBuffer* buffer){
     d3d11Context->PSSetSamplers(0, 1, &pointSampler);
     d3d11Context->VSSetShader(canvasRenderer.vertexShader, 0, 0);
@@ -1308,6 +1322,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.setMasterAudioVolume = &setMasterAudioVolume;
     gameState->osFunctions.createMeshAnimation = &createMeshAnimation;
     gameState->osFunctions.renderAnimatedMesh = &renderAnimatedMesh;
+    gameState->osFunctions.updateTexturedMeshVertices = &updateTexturedMeshVertices;
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
     gameState->currentFont = &debugFont;

@@ -7,6 +7,7 @@ improve lighting
 import fonts from .ttf .otf
 
 BUG FIX:
+figure out why i need to invert terrain normals
 fix skybox twitching
 make text and canvas positioning scale with window
 handle updating resolution on window resize
