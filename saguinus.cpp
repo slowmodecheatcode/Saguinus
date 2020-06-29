@@ -387,13 +387,12 @@ static f32 smoothNoise(Vector2 p, f32* noise){
   
 }
 
-static void updateTerrain(GameState* state){
+static void updateTerrain(GameState* state, f32* terrainVerts){
     Terrain* t = &state->terrain;
     Player* p = &state->player;
 
     u32 size = t->size;
 
-    f32* terrainVerts = (f32*)state->storage.tempMemoryBuffer;
     u32 ctr = 0;
 
     f32 sx = state->player.position.x - (size * 0.5);
@@ -403,7 +402,18 @@ static void updateTerrain(GameState* state){
         for(s32 j = 0; j < size; j++){
             f32 nx = j + sx;
             f32 ny = i + sy;
-            state->terrain.vertices[i * size + j] = Vector3(nx, smoothNoise(Vector2(nx, ny), state->noise) * 100 - 50, ny);
+            f32 yp = smoothNoise(Vector2(nx, ny), state->noise);
+            t->vertices[i * size + j] = Vector3(nx, yp * 100 - 50, ny);
+
+            f32 r = maximumOf(0, 2 * yp - 1);
+            f32 g = yp;
+            f32 b = 1 - yp;
+
+            u32 index = (i * 256 * 4) + (j * 4);
+            t->pixels[index + 0] = r * 255;
+            t->pixels[index + 1] = g * 255;
+            t->pixels[index + 2] = b * 255;
+            t->pixels[index + 3] = 255;
         }
     }
 
@@ -417,12 +427,12 @@ static void updateTerrain(GameState* state){
             u32 li = (j - 1) % size;
             u32 ri = (j + 1) % size;
 
-            Vector3 vrt = Vector3(j + 1, state->terrain.vertices[i * size + ri].y, i);
-            Vector3 vlo = Vector3(j, state->terrain.vertices[di * size + j].y, i + 1);
-            Vector3 vlt = Vector3(j - 1, state->terrain.vertices[i * size + li].y, i);
-            Vector3 vll = Vector3(j - 1, state->terrain.vertices[di * size + li].y, i + 1);
-            Vector3 vhi = Vector3(j, state->terrain.vertices[ui * size + j].y, i - 1);
-            Vector3 vhr = Vector3(j + 1, state->terrain.vertices[ui * size + ri].y, i - 1);
+            Vector3 vrt = Vector3(pos.x + 1, state->terrain.vertices[i * size + ri].y, pos.z);
+            Vector3 vlo = Vector3(pos.x, state->terrain.vertices[di * size + j].y, pos.z + 1);
+            Vector3 vlt = Vector3(pos.x - 1, state->terrain.vertices[i * size + li].y, pos.z);
+            Vector3 vll = Vector3(pos.x - 1, state->terrain.vertices[di * size + li].y, pos.z + 1);
+            Vector3 vhi = Vector3(pos.x, state->terrain.vertices[ui * size + j].y, pos.z - 1);
+            Vector3 vhr = Vector3(pos.x + 1, state->terrain.vertices[ui * size + ri].y, pos.z - 1);
             Vector3 n1 = cross(vll - vlt, pos - vlt);
             Vector3 n2 = cross(vhi - pos, vlt - pos);
             Vector3 n3 = cross(pos - vhi, vhr - vhi);
@@ -431,7 +441,7 @@ static void updateTerrain(GameState* state){
             Vector3 n6 = cross(pos - vlo, vll - vlo);
             norm = (n1 + n2 + n3 + n4 + n5 + n6) * (1.0/6.0);
 
-            norm = -normalOf(norm);
+            norm = normalOf(norm);
 
             terrainVerts[ctr++] = pos.x;
             terrainVerts[ctr++] = pos.y;
@@ -443,8 +453,6 @@ static void updateTerrain(GameState* state){
             terrainVerts[ctr++] = (f32)i / (f32)size;
         }
     }
-
-    state->osFunctions.updateTexturedMeshVertices(&t->mesh, terrainVerts, ctr * sizeof(f32));
 }
 
 static void updatePlayer(GameState* state){
@@ -603,7 +611,7 @@ static void initializeGameState(GameState* state){
     const u32 size = 256;
     state->terrain.size = size;
     f32* noise = state->noise;
-    u32 v = xorshift(1);
+    u32 v = xorshift(2);
     for(u32 i = 0; i < size; i++){
         for(u32 j = 0; j < size; j++){
             noise[i * 256 + j] = (f32)v / (f32)MAX_U32;
@@ -621,55 +629,7 @@ static void initializeGameState(GameState* state){
     u32 *terrainElms = (u32*)state->storage.tempMemoryBuffer + terVertSize;
     state->terrain.vertices = (Vector3*)allocateLongTermMemory(state, sizeof(Vector3*) * size * size);
 
-    // generateTerrainMap(state->terrain.vertices, noise);
-
-    f32 sx = state->player.position.x - (size * 0.5);
-    f32 sy = state->player.position.z - (size * 0.5);
-    state->terrain.centerXZ = Vector2(state->player.position.x, state->player.position.z);
-    for(s32 i = 0; i < size; i++){
-        for(s32 j = 0; j < size; j++){
-            f32 nx = j + sx;
-            f32 ny = i + sy;
-            state->terrain.vertices[i * size + j] = Vector3(nx, smoothNoise(Vector2(nx, ny), noise) * 100 - 50, ny);
-        }
-    }
-
-    for(s32 i = 0; i < size; i++){
-        for(s32 j = 0; j < size; j++){
-            Vector3 pos = state->terrain.vertices[i * size + j];
-            Vector3 norm;
-            
-            u32 ui = (i - 1) % size;
-            u32 di = (i + 1) % size;
-            u32 li = (j - 1) % size;
-            u32 ri = (j + 1) % size;
-
-            Vector3 vrt = Vector3(j + 1, state->terrain.vertices[i * size + ri].y, i);
-            Vector3 vlo = Vector3(j, state->terrain.vertices[di * size + j].y, i + 1);
-            Vector3 vlt = Vector3(j - 1, state->terrain.vertices[i * size + li].y, i);
-            Vector3 vll = Vector3(j - 1, state->terrain.vertices[di * size + li].y, i + 1);
-            Vector3 vhi = Vector3(j, state->terrain.vertices[ui * size + j].y, i - 1);
-            Vector3 vhr = Vector3(j + 1, state->terrain.vertices[ui * size + ri].y, i - 1);
-            Vector3 n1 = cross(vll - vlt, pos - vlt);
-            Vector3 n2 = cross(vhi - pos, vlt - pos);
-            Vector3 n3 = cross(pos - vhi, vhr - vhi);
-            Vector3 n4 = cross(vhr - vrt, pos - vrt);
-            Vector3 n5 = cross(vrt - pos, vlo - pos);
-            Vector3 n6 = cross(pos - vlo, vll - vlo);
-            norm = (n1 + n2 + n3 + n4 + n5 + n6) * (1.0/6.0);
-
-            norm = -normalOf(norm);
-
-            terrainVerts[ctr++] = pos.x;
-            terrainVerts[ctr++] = pos.y;
-            terrainVerts[ctr++] = pos.z;
-            terrainVerts[ctr++] = norm.x;
-            terrainVerts[ctr++] = norm.y;
-            terrainVerts[ctr++] = norm.z;
-            terrainVerts[ctr++] = (f32)j / (f32)size;
-            terrainVerts[ctr++] = (f32)i / (f32)size;
-        }
-    }
+    updateTerrain(state, (f32*)state->storage.tempMemoryBuffer);
 
     ctr = 0;
     u32 totElmSize = (size - 1) * (size - 1) * 6 * sizeof(u32);
@@ -685,8 +645,8 @@ static void initializeGameState(GameState* state){
         }
     }
 
-    state->terrain.mesh = state->osFunctions.createTexturedMeshFromData(terrainVerts, terVertSize, terrainElms, totElmSize);
-    state->terrain.mesh.texture = state->osFunctions.createTexture2DFromFile("terrain.texpix", 4);
+    state->terrain.mesh = state->osFunctions.createTexturedMeshFromData((f32*)state->storage.tempMemoryBuffer, terVertSize, terrainElms, totElmSize);
+    state->terrain.mesh.texture = state->osFunctions.createTexture2DFromData(state->terrain.pixels, 256, 256, 4);
 
     state->inputMode = INPUT_MODE_KB_MOUSE;
     state->gameOver = false;
@@ -720,7 +680,9 @@ extern "C" void updateGameState(GameState* state){
 
             f32 len = length(Vector2(p->position.x, p->position.z) - state->terrain.centerXZ);
             if(len > 32){
-                updateTerrain(state);
+                updateTerrain(state, (f32*)state->storage.tempMemoryBuffer);
+                state->osFunctions.updateTexturedMeshVertices(&state->terrain.mesh, (f32*)state->storage.tempMemoryBuffer, 256 * 256 * 8 * sizeof(f32));
+                state->osFunctions.updateTexture2DPixels(&state->terrain.mesh.texture, state->terrain.pixels, 256 * 256 * 4);
             }
 
             debugPrint(state, "Length: %f", len);

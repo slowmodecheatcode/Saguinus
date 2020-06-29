@@ -222,6 +222,7 @@ struct OSFunctions {
     void (*setMasterAudioVolume)(f32 v);
     void (*renderAnimatedMesh)(AnimatedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation);
     void (*updateTexturedMeshVertices)(TexturedMesh* mesh, f32* vertices, u32 vertSize);
+    void (*updateTexture2DPixels)(Texture2D* texture, u8* pixels, u32 dataSize);
     bool (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
     bool (*writeToFile)(const s8* fileName, void* data, u32 dataSize);
     Texture2D (*createTexture2DFromFile)(const s8* fileName, u32 bytesPerPixel);
@@ -261,6 +262,7 @@ struct Obstacle {
 };
 
 struct Terrain {
+    u8 pixels[256 * 256 * 4];
     Vector2 centerXZ;
     TexturedMesh mesh;
     Vector3* vertices;

@@ -8,7 +8,7 @@ import fonts from .ttf .otf
 
 BUG FIX:
 figure out why i need to invert terrain normals
-fix skybox twitching
+fix skybox twitching (most likely matrix4ToQuaternion)
 make text and canvas positioning scale with window
 handle updating resolution on window resize
 improve default skybox texture

@@ -197,6 +197,16 @@ static Texture2D createTexture2D(u8* data, u32 width, u32 height, u32 bytesPerPi
     return tex;
 }
 
+static void updateTexture2DPixels(Texture2D* texture, u8* pixels, u32 dataSize){
+    D3D11_MAPPED_SUBRESOURCE texData;  
+    ID3D11Resource* res;
+    ((ID3D11ShaderResourceView*)texture->texture)->GetResource(&res);
+    d3d11Context->Map(res, 0, D3D11_MAP_WRITE_DISCARD, 0, &texData);
+    u8* tdat = (u8*)texData.pData;
+    memcpy(tdat, pixels, dataSize);
+    d3d11Context->Unmap(res, 0);
+}
+
 static TextureCube createTextureCube(u8* data, u32 width, u32 height, u32 bytesPerPixel){
     TextureCube tex;
 
@@ -1323,6 +1333,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.createMeshAnimation = &createMeshAnimation;
     gameState->osFunctions.renderAnimatedMesh = &renderAnimatedMesh;
     gameState->osFunctions.updateTexturedMeshVertices = &updateTexturedMeshVertices;
+    gameState->osFunctions.updateTexture2DPixels = &updateTexture2DPixels;
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
     gameState->currentFont = &debugFont;
