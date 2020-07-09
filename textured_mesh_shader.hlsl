@@ -2,6 +2,7 @@ struct VertexInput {
     float3 position : POSITION;
     float3 normal : NORMAL;
     float2 uvCoordinates : UVCOORD;
+    float4x4 instanceMatrix : INSTANCE_MATRIX;
 };
 
 struct VertexOutput {
@@ -40,6 +41,15 @@ VertexOutput vertexMain(VertexInput input){
     output.fragmentPostion = float4(mul(modelMatrix, float4(input.position, 1))).xyz;
     output.fragmentNormal = float4(mul(modelMatrix, float4(input.normal, 0))).xyz;
     output.position = mul(cameraMatrix, mul(modelMatrix, float4(input.position, 1)));
+    return output;
+}
+
+VertexOutput instanceVertexMain(VertexInput input){
+    VertexOutput output;
+    output.uvCoordinates = input.uvCoordinates;
+    output.fragmentPostion = float4(mul(input.instanceMatrix, float4(input.position, 1))).xyz;
+    output.fragmentNormal = float4(mul(input.instanceMatrix, float4(input.normal, 0))).xyz;
+    output.position = mul(cameraMatrix, mul(input.instanceMatrix, float4(input.position, 1)));
     return output;
 }
 

@@ -1,5 +1,4 @@
 FEATURE:
-infinite terrain
 instance rendering
 mouse picking
 shadow mapping
@@ -7,13 +6,12 @@ improve lighting
 import fonts from .ttf .otf
 
 BUG FIX:
-figure out why i need to invert terrain normals
-fix skybox twitching (most likely matrix4ToQuaternion)
 make text and canvas positioning scale with window
 handle updating resolution on window resize
 improve default skybox texture
 
 OPTIMIZATION:
+make terrain generation better
 precompute camera projection * camera view matrices
 function timing
 use mapping to update constant buffers

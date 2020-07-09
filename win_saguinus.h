@@ -34,10 +34,12 @@ struct TexturedMeshRenderer {
     } pixelConstants;
 
     ID3D11Buffer* vertexBuffer;
+    ID3D11Buffer* instanceVertexBuffer;
     ID3D11Buffer* indexBuffer;
     ID3D11Buffer* vertexConstBuffer;
     ID3D11Buffer* pixelConstBuffer;
     ID3D11VertexShader* vertexShader;
+    ID3D11VertexShader* instanceVertexShader;
     ID3D11PixelShader* pixelShader;
     ID3D11InputLayout* inputLayout;
     Texture2D defaultTexture;

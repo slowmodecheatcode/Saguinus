@@ -6,6 +6,12 @@ static u32 randomU32(u32 sd = 1){
     return seed;
 }
 
+static f32 randomF32(u32 sd = 1){
+    static u32 seed = sd;
+    seed = xorshift(seed);
+    return (f32)seed / (f32)MAX_U32;
+}
+
 static u8* allocateLongTermMemory(GameState* state, u32 amount){
     u8* ptr = state->storage.longTermBufferPointer;
     state->storage.longTermBufferStorageTaken += amount;
@@ -179,6 +185,74 @@ static void addTexturedMeshToBuffer(GameState* state, TexturedMesh* mesh, Vector
     tmb->indexAddons[idx] = mesh->indexAddon;
 }
 
+static void addTexturedMeshToInstanceBuffer(GameState* state, TexturedMesh* mesh, u32 instanceCount){
+    TexturedMeshInstanceBuffer* tmb = &state->txtdMeshInstBuffer;
+    u32 idx = tmb->totalMeshes++;
+    tmb->instanceCounts[idx] = instanceCount;
+    tmb->textures[idx] = mesh->texture;
+    tmb->indexCounts[idx] = mesh->indexCount;
+    tmb->indexOffsets[idx] = mesh->indexOffset;
+    tmb->indexAddons[idx] = mesh->indexAddon;
+}
+
+static void addAnimatedMeshToBuffer(GameState* state, AnimatedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation){
+    MeshAnimation* anim = mesh->animation;
+
+    f32 dt = anim->currentPoseElapsed / anim->currentPoseTime;
+    u32 cfi = anim->currentKeyframe * anim->totalBones;
+    u32 nfi = anim->nextKeyframe * anim->totalBones;
+
+    Matrix4 poseMatrices[32];
+    Matrix4 parentMatrices[32];
+    Quaternion brot = slerp(anim->poses[cfi].orientaion, anim->poses[nfi].orientaion, dt);
+    Vector3 bpos = linearInterpolation(anim->poses[cfi].position, anim->poses[nfi].position, dt);
+    Matrix4 bmat = buildModelMatrix(bpos, Vector3(1), brot);
+    parentMatrices[0] = bmat;
+    poseMatrices[0] = bmat * anim->inverseBindTransforms[0];
+    for(u32 i = 1; i < anim->totalBones; i++){
+        brot = slerp(anim->poses[cfi + i].orientaion, anim->poses[nfi + i].orientaion, dt);
+        bpos = linearInterpolation(anim->poses[cfi + i].position, anim->poses[nfi + i].position, dt);
+        bmat = buildModelMatrix(bpos, Vector3(1), brot);
+        bmat = parentMatrices[(int)anim->poses[cfi + i].parentIndex] * bmat;
+        parentMatrices[i] = bmat;
+        poseMatrices[i] = bmat * anim->inverseBindTransforms[i];
+    }
+
+    
+    f32* vdat = state->texturedMeshVertexPointer;
+    vdat += mesh->mesh.vertexBufferOffset / sizeof(f32);
+
+    for(u32 i = 0; i < mesh->totalVertices; i++){
+        Vector3 vpos = ((Vector3*)mesh->positions)[i];
+        Vector3 vnrm = ((Vector3*)mesh->normals)[i];
+        Vector4 weight = ((Vector4*)mesh->weights)[i];
+        Vector4 bones = ((Vector4*)mesh->bones)[i];
+
+        Vector4 p4(vpos, 1.0);
+        Vector4 n4(vnrm, 0.0);
+
+        Vector4 npos = (poseMatrices[(int)bones.x] * p4) * weight.x;
+        npos +=        (poseMatrices[(int)bones.y] * p4) * weight.y;
+        npos +=        (poseMatrices[(int)bones.z] * p4) * weight.z;
+        npos +=        (poseMatrices[(int)bones.w] * p4) * weight.w;
+
+        Vector4 nnrm = (poseMatrices[(int)bones.x] * n4) * weight.x;
+        nnrm +=        (poseMatrices[(int)bones.y] * n4) * weight.y;
+        nnrm +=        (poseMatrices[(int)bones.z] * n4) * weight.z;
+        nnrm +=        (poseMatrices[(int)bones.w] * n4) * weight.w;
+
+        vdat[0] = npos.x;
+        vdat[1] = npos.y;
+        vdat[2] = npos.z;
+        vdat[3] = nnrm.x;
+        vdat[4] = nnrm.y;
+        vdat[5] = nnrm.z;
+        vdat += 8;
+    }
+
+    addTexturedMeshToBuffer(state, &mesh->mesh, position, scale, orientation);
+}
+
 static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
     mesh->currentPoseElapsed += deltaTime;
     if(mesh->currentPoseElapsed > mesh->currentPoseTime){
@@ -195,6 +269,15 @@ static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
         mesh->currentPoseTime = (mesh->keyframes[nkf] - mesh->keyframes[ckf]) / mesh->frameRate;
         mesh->currentKeyframe = ckf;
         mesh->nextKeyframe = nkf;
+    }
+}
+
+static void updateTexturedMeshVertices(GameState* state, TexturedMesh* mesh, f32* vertices, u32 vertSize){
+    f32* vdat = state->texturedMeshVertexPointer;
+    vdat += mesh->vertexBufferOffset / sizeof(f32);
+    u32 vertFloatSize = vertSize * sizeof(f32);
+    for(u32 i = 0; i < vertFloatSize; i++){
+        vdat[i] = vertices[i];
     }
 }
 
@@ -542,7 +625,8 @@ static void renderGame(GameState* state){
     addTexturedMeshToBuffer(state, &state->terrain.mesh, Vector3(0), Vector3(1), Quaternion());
 
     updateMeshAnimation(p->mesh.animation, state->deltaTime);
-    state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
+    //state->osFunctions.renderAnimatedMesh(&p->mesh, p->position, p->scale, p->orientation);
+    addAnimatedMeshToBuffer(state, &p->mesh, p->position, p->scale, p->orientation);
 }
 
 static void resetGame(GameState* state){
@@ -648,6 +732,21 @@ static void initializeGameState(GameState* state){
     state->terrain.mesh = state->osFunctions.createTexturedMeshFromData((f32*)state->storage.tempMemoryBuffer, terVertSize, terrainElms, totElmSize);
     state->terrain.mesh.texture = state->osFunctions.createTexture2DFromData(state->terrain.pixels, 256, 256, 4);
 
+    state->instanceTestMesh = state->osFunctions.createTexturedMeshFromFile("suzanne.texmesh");
+
+    Matrix4* im = state->instanceMatrixPointer;
+    for(u32 i = 0; i < 256; i++){
+        im[i] = Matrix4(1);
+        s32 px = (randomU32() % 256) - 128;
+        s32 pz = (randomU32() % 256) - 128;
+         s32 py = getVerticalPositionInTerrain(&state->terrain, Vector2(px, pz));
+        Vector3 pos(px, py, pz);
+        Vector3 scale(1);
+        Quaternion q;
+        rotate(&q, Vector3(0, 1, 0), randomF32() * PI);
+        im[i] = buildModelMatrix(pos, scale, q);
+    }
+
     state->inputMode = INPUT_MODE_KB_MOUSE;
     state->gameOver = false;
     state->isInitialized = true;
@@ -665,6 +764,9 @@ extern "C" void updateGameState(GameState* state){
 
     state->mousePositionDelta = Vector2(state->mousePosition.x - state->windowDimenstion.x * 0.5, 
                                         state->mousePosition.y - state->windowDimenstion.y * 0.5);
+
+    addTexturedMeshToInstanceBuffer(state, &state->instanceTestMesh, 10);
+
     switch (state->mode) {
         case GameMode::GAME_MODE_DEBUG : { 
             updateCameraWithMouse(state);
@@ -681,8 +783,20 @@ extern "C" void updateGameState(GameState* state){
             f32 len = length(Vector2(p->position.x, p->position.z) - state->terrain.centerXZ);
             if(len > 32){
                 updateTerrain(state, (f32*)state->storage.tempMemoryBuffer);
-                state->osFunctions.updateTexturedMeshVertices(&state->terrain.mesh, (f32*)state->storage.tempMemoryBuffer, 256 * 256 * 8 * sizeof(f32));
+                updateTexturedMeshVertices(state, &state->terrain.mesh, (f32*)state->storage.tempMemoryBuffer, 256*256*8*sizeof(f32));
                 state->osFunctions.updateTexture2DPixels(&state->terrain.mesh.texture, state->terrain.pixels, 256 * 256 * 4);
+                // Matrix4* im = state->instanceMatrixPointer;
+                // for(u32 i = 0; i < 256; i++){
+                //     im[i] = Matrix4(1);
+                //     s32 px = (randomU32() % 256) - 128;
+                //     s32 pz = (randomU32() % 256) - 128;
+                //     s32 py = getVerticalPositionInTerrain(&state->terrain, Vector2(px, pz));
+                //     Vector3 pos(px, py, pz);
+                //     Vector3 scale(1);
+                //     Quaternion q;
+                //     rotate(&q, Vector3(0, 1, 0), randomF32() * PI);
+                //     im[i] = buildModelMatrix(pos, scale, q);
+                // }
             }
 
             debugPrint(state, "Length: %f", len);

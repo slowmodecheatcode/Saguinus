@@ -330,12 +330,35 @@ static Vector3 normalOf(Vector3 v){
 static Quaternion matrix4ToQuaternion(Matrix4* mat){
     Quaternion q;
 
-    f32 qw = sqrt(1 + mat->m2[0][0] + mat->m2[1][1] + mat->m2[2][2]) * 0.5;
-    f32 qwX4 = 4 * qw;
-    q.x = (mat->m2[1][2] - mat->m2[2][1]) / qwX4;
-    q.y = (mat->m2[2][0] - mat->m2[0][2]) / qwX4;
-    q.z = (mat->m2[0][1] - mat->m2[1][0]) / qwX4;
-    q.w = qw;
+    f32 sum = mat->m2[0][0] + mat->m2[1][1] + mat->m2[2][2];
+
+    if(sum > 0){
+        f32 qw = sqrt(1 + sum) * 0.5;
+        f32 qwX4 = 4 * qw;
+        q.x = (mat->m2[1][2] - mat->m2[2][1]) / qwX4;
+        q.y = (mat->m2[2][0] - mat->m2[0][2]) / qwX4;
+        q.z = (mat->m2[0][1] - mat->m2[1][0]) / qwX4;
+        q.w = qw;
+    }else if(mat->m2[0][0] > mat->m2[1][1] && mat->m2[0][0] > mat->m2[2][2]){
+        f32 qq = 2 * sqrt(1 + mat->m2[0][0] - mat->m2[1][1] - mat->m2[2][2]);
+        q.x = qq * 0.25;
+        q.y = (mat->m2[1][0] + mat->m2[0][1]) / qq;
+        q.z = (mat->m2[2][0] + mat->m2[0][2]) / qq;
+        q.w = (mat->m2[1][2] - mat->m2[2][1]) / qq;
+    }else if(mat->m2[1][1] > mat->m2[2][2]){
+        f32 qq = 2 * sqrt(1 + mat->m2[1][1] - mat->m2[0][0] - mat->m2[2][2]);
+        q.x = (mat->m2[1][0] + mat->m2[0][1]) / qq;
+        q.y = qq * 0.25;
+        q.z = (mat->m2[2][1] + mat->m2[1][2]) / qq;
+        q.w = (mat->m2[2][0] - mat->m2[0][2]) / qq;
+    }else{
+        f32 qq = 2 * sqrt(1 + mat->m2[2][2] - mat->m2[0][0] - mat->m2[1][1]);
+        q.x = (mat->m2[2][0] + mat->m2[0][2]) / qq;
+        q.y = (mat->m2[2][1] + mat->m2[1][2]) / qq;
+        q.z = qq * 0.25;
+        q.w = (mat->m2[0][1] - mat->m2[1][0]) / qq;
+    }
+    
 
     return q;
 }

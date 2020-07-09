@@ -295,24 +295,33 @@ static void initializeTexturedMeshRenderer(){
 
     ID3DBlob* vertexBlob; 
     ID3DBlob* pixelBlob;
+    ID3DBlob* instanceVertexBlob;
     ID3DBlob* errBlob = 0;               
     D3DCompileFromFile(L"textured_mesh_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"textured_mesh_shader.hlsl", 0, 0, "instanceVertexMain", "vs_5_0", 0, 0, &instanceVertexBlob, &errBlob);
     if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
     D3DCompileFromFile(L"textured_mesh_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
     if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
 
     HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &texturedMeshRenderer.vertexShader);
     if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreateVertexShader(instanceVertexBlob->GetBufferPointer(), instanceVertexBlob->GetBufferSize(), 0, &texturedMeshRenderer.instanceVertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating instance vertex shader", "ERROR", 0);
     hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &texturedMeshRenderer.pixelShader);
     if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
 
     D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(float) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(float) * 6, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(f32) * 3, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "UVCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, sizeof(f32) * 6, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "INSTANCE_MATRIX", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0,               D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "INSTANCE_MATRIX", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(f32) * 4, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "INSTANCE_MATRIX", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(f32) * 8, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+        { "INSTANCE_MATRIX", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, sizeof(f32) * 12, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
     };
     
-    hr = d3d11Device->CreateInputLayout(layoutDesc, 3, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &texturedMeshRenderer.inputLayout);
+    hr = d3d11Device->CreateInputLayout(layoutDesc, 7, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &texturedMeshRenderer.inputLayout);
     checkError(hr, "Could not create input layout");
 
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
@@ -334,9 +343,15 @@ static void initializeTexturedMeshRenderer(){
     //TEMPORARY BUFFER SIZE --- FIX THIS!!
     bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
  
-
     hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &texturedMeshRenderer.indexBuffer);
     checkError(hr, "Error creating index buffer");
+
+    bufferDesc.ByteWidth = MEGABYTE(1);
+    bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+    bufferData.pSysMem = tempStorageBuffer;
+    hr = d3d11Device->CreateBuffer(&bufferDesc, &bufferData, &texturedMeshRenderer.instanceVertexBuffer);
+    if(hr != S_OK)  MessageBox(0, "Error creating instance vertex buffer", "ERROR", 0);
 
 
     bufferDesc.ByteWidth = sizeof(texturedMeshRenderer.vertexConstants);
@@ -1028,6 +1043,67 @@ static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, Po
     tmb->totalMeshes = 0;
 }
 
+static void renderTexturedMeshInstance(TexturedMesh* tmb, Camera* camera, PointLight* light, u32 totalInstances){
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
+    d3d11Context->VSSetShader(texturedMeshRenderer.instanceVertexShader, 0, 0);
+    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
+    u32 stride = sizeof(f32) * 16;
+    u32 offset = 0;
+    d3d11Context->IASetVertexBuffers(1, 1, &texturedMeshRenderer.instanceVertexBuffer, &stride, &offset);
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
+
+    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+
+    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
+    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
+    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
+    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
+    texturedMeshRenderer.pixelConstants.specular = light->specular;
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
+
+
+    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&tmb->texture.texture);
+    //d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
+
+    d3d11Context->DrawIndexedInstanced(tmb->indexCount, totalInstances, tmb->indexOffset, tmb->indexAddon, 0);
+    
+}
+
+static void renderTexturedMeshInstanceBuffer(TexturedMeshInstanceBuffer* tmb, Camera* camera, PointLight* light){
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
+    d3d11Context->VSSetShader(texturedMeshRenderer.instanceVertexShader, 0, 0);
+    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
+    u32 stride = sizeof(f32) * 16;
+    u32 offset = 0;
+    d3d11Context->IASetVertexBuffers(1, 1, &texturedMeshRenderer.instanceVertexBuffer, &stride, &offset);
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
+
+    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+
+    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
+    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
+    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
+    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
+    texturedMeshRenderer.pixelConstants.specular = light->specular;
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
+
+    u32 totalMeshes = tmb->totalMeshes;
+    for(u32 i = 0; i < totalMeshes; i++){
+        d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&tmb->textures[i].texture);
+        d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
+        d3d11Context->DrawIndexedInstanced(tmb->indexCounts[i], tmb->instanceCounts[i], tmb->indexOffsets[i], tmb->indexAddons[i], 0);
+    }
+    tmb->totalMeshes = 0;
+}
+
 static void setMasterAudioVolume(f32 v){
         checkError(XAudio2MasterVoice->SetVolume(0.002), "Could not set master volume");
 }
@@ -1286,6 +1362,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     d3d11Device->CreateBlendState(&blendStateDesc, &blendState);
 
     d3d11Context->OMSetBlendState(blendState, 0, 0xffffffff);
+    d3d11Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 
     initializeCanvasRenderer();
     initializeTexturedMeshRenderer();
@@ -1331,8 +1409,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     gameState->osFunctions.playAudioEmitter = &playAudioEmitter;
     gameState->osFunctions.setMasterAudioVolume = &setMasterAudioVolume;
     gameState->osFunctions.createMeshAnimation = &createMeshAnimation;
-    gameState->osFunctions.renderAnimatedMesh = &renderAnimatedMesh;
-    gameState->osFunctions.updateTexturedMeshVertices = &updateTexturedMeshVertices;
     gameState->osFunctions.updateTexture2DPixels = &updateTexture2DPixels;
     gameState->keyInputs = keyInputs;
     gameState->mouseInputs = mouseInputs;
@@ -1404,7 +1480,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             gameState->isInitialized = false;
         }
         
+        D3D11_MAPPED_SUBRESOURCE vertData;
+        D3D11_MAPPED_SUBRESOURCE instanceData;                        
+        d3d11Context->Map(texturedMeshRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
+        d3d11Context->Map(texturedMeshRenderer.instanceVertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &instanceData);
+        gameState->texturedMeshVertexPointer = (f32*)vertData.pData;
+        gameState->instanceMatrixPointer = (Matrix4*)instanceData.pData;
         updateGS(gameState);
+        d3d11Context->Unmap(texturedMeshRenderer.vertexBuffer, 0);
+        d3d11Context->Unmap(texturedMeshRenderer.instanceVertexBuffer, 0);
 
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState->clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
@@ -1412,8 +1496,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         //rendering is done here
         renderSkybox(&gameState->camera);
         renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
+        renderTexturedMeshInstanceBuffer(&gameState->txtdMeshInstBuffer, &gameState->camera, &gameState->light);
         renderDebugBuffer(&gameState->debugBuffer, &gameState->camera);
-        //renderTextBuffer(&gameState->textBuffer);
+
+
         renderCanvasBuffer(&gameState->canvasBuffer);
         
         swapChain->Present(1, 0);

@@ -74,9 +74,9 @@ class TexturedMeshExporter(bpy.types.Operator):
 
         file = open(self.fileLocation + "/" + self.fileName + ".texmesh", "wb")
         array.array('I', [len(flatVerts) * 4]).tofile(file)
-        array.array('I', [len(indices) * 2]).tofile(file)
+        array.array('I', [len(indices) * 4]).tofile(file)
         array.array('f', flatVerts).tofile(file)
-        array.array('H', indices).tofile(file)
+        array.array('I', indices).tofile(file)
 
         file.close()
         return {'FINISHED'}

@@ -186,6 +186,15 @@ struct TexturedMeshBuffer {
     u32 totalMeshes;
 };
 
+struct TexturedMeshInstanceBuffer {
+    Texture2D textures[MAX_TEXTURED_MESHES];
+    u32 indexCounts[MAX_TEXTURED_MESHES];
+    u32 indexOffsets[MAX_TEXTURED_MESHES];
+    u32 indexAddons[MAX_TEXTURED_MESHES];
+    u32 instanceCounts[MAX_TEXTURED_MESHES];
+    u32 totalMeshes;
+};
+
 struct CanvasBuffer {
     Vector4 colors[MAX_GUI_ITEMS];
     Vector2 positions[MAX_GUI_ITEMS];
@@ -220,8 +229,6 @@ struct OSFunctions {
     void (*updateAudioEmitterDynamics)(AudioEmitter ae, Vector3 epos, Vector3 lpos, Vector3 lrgt);
     void (*playAudioEmitter)(AudioEmitter ae, s8* buffer, u32 bufferSize);
     void (*setMasterAudioVolume)(f32 v);
-    void (*renderAnimatedMesh)(AnimatedMesh* mesh, Vector3 position, Vector3 scale, Quaternion orientation);
-    void (*updateTexturedMeshVertices)(TexturedMesh* mesh, f32* vertices, u32 vertSize);
     void (*updateTexture2DPixels)(Texture2D* texture, u8* pixels, u32 dataSize);
     bool (*readFileIntoBuffer)(const s8* fileName, void* data, u32* fileLength);
     bool (*writeToFile)(const s8* fileName, void* data, u32 dataSize);
@@ -290,8 +297,11 @@ struct GameState {
     CanvasBuffer canvasBuffer;
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
+    TexturedMeshInstanceBuffer txtdMeshInstBuffer;
 
     Font* currentFont;
+
+    TexturedMesh instanceTestMesh;
 
     Texture2D testTex1;
     Texture2D testTex2;
@@ -324,6 +334,11 @@ struct GameState {
     bool keyTracking[128];
     bool mouseButtonTracking[4];
     bool gamepadButtonTracking[16];
+
+    Matrix4* instanceMatrixPointer;
+
+    f32* texturedMeshVertexPointer;
+    
 
     s8* soundBuffer1;
     s8* soundBuffer2;
