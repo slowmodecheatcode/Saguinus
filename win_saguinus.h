@@ -130,6 +130,7 @@ static ID3D11Device* d3d11Device;
 static ID3D11DeviceContext* d3d11Context;
 static ID3D11SamplerState *pointSampler;
 static ID3D11SamplerState *linearSampler;
+static IDXGISwapChain* swapChain;
 static IXAudio2* XAudio2Pointer;
 static IXAudio2MasteringVoice* XAudio2MasterVoice;
 

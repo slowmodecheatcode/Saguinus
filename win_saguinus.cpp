@@ -2,10 +2,14 @@
 
 #include "win_saguinus.h"
 
+static u32 defaultResolutionWidth = 1200;
+static u32 defaultResolutionHeight = 675;
 static u32 windowWidth = 1200;
 static u32 windowHeight = 675;
 static s32 halfWindowWidth = windowWidth * 0.5;
 static s32 halfWindowHeight = windowHeight * 0.5;
+
+static f32 aspectRatio = (f32)defaultResolutionWidth / (f32)defaultResolutionHeight;
 
 static void checkError(HRESULT err, LPCSTR msg){
     if(err != S_OK){
@@ -1156,6 +1160,40 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             exit(0);
             break;
         }
+        case WM_SIZE:{
+            windowWidth = LOWORD(lParam);
+            windowHeight = HIWORD(lParam);
+            halfWindowWidth = windowWidth * 0.5;
+            halfWindowHeight = windowHeight * 0.5;
+            gameState->windowDimenstion.x = windowWidth;
+            gameState->windowDimenstion.y = windowHeight;
+            screenCenter.x = halfWindowWidth;
+            screenCenter.y = halfWindowHeight;
+            ClientToScreen(hwnd, &screenCenter);
+
+            D3D11_VIEWPORT viewPort = {};
+
+            f32 xrat = (f32)defaultResolutionWidth / (f32)windowWidth;
+            f32 yrat = (f32)defaultResolutionHeight / (f32)windowHeight;
+
+            if(windowWidth / windowHeight >= aspectRatio){
+                viewPort.Height = windowHeight * yrat;
+                viewPort.Width = windowHeight * aspectRatio * xrat;
+            }else{
+                viewPort.Height = (windowWidth / aspectRatio) * yrat;
+                viewPort.Width = windowWidth * xrat;
+            }
+
+            viewPort.TopLeftX = ((windowWidth * xrat) - viewPort.Width) * 0.5;
+            viewPort.TopLeftY = ((windowHeight * yrat) - viewPort.Height) * 0.5;
+
+            viewPort.MinDepth = 0;
+            viewPort.MaxDepth = 1;
+            d3d11Context->RSSetViewports(1, &viewPort);
+
+
+            break;
+        }
         case WM_WINDOWPOSCHANGED:{
             screenCenter.x = halfWindowWidth;
             screenCenter.y = halfWindowHeight;
@@ -1254,12 +1292,13 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     swapChainDesc.Windowed = true;
     swapChainDesc.BufferCount = 1;
     swapChainDesc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    swapChainDesc.BufferDesc.Width = defaultResolutionWidth;
+    swapChainDesc.BufferDesc.Height = defaultResolutionHeight;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SampleDesc.Count = 1;      
     swapChainDesc.SampleDesc.Quality = 0;   
     swapChainDesc.OutputWindow = hwnd;
     
-    IDXGISwapChain* swapChain;
     D3D_FEATURE_LEVEL d3dFeatureLevels[] = {D3D_FEATURE_LEVEL_11_0};
     HRESULT hr = D3D11CreateDeviceAndSwapChain(0, D3D_DRIVER_TYPE_HARDWARE, 0, 0, d3dFeatureLevels,
                                                1, D3D11_SDK_VERSION, &swapChainDesc, &swapChain, 

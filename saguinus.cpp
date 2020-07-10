@@ -275,7 +275,7 @@ static void updateMeshAnimation(MeshAnimation* mesh, f32 deltaTime){
 static void updateTexturedMeshVertices(GameState* state, TexturedMesh* mesh, f32* vertices, u32 vertSize){
     f32* vdat = state->texturedMeshVertexPointer;
     vdat += mesh->vertexBufferOffset / sizeof(f32);
-    u32 vertFloatSize = vertSize * sizeof(f32);
+    u32 vertFloatSize = vertSize / sizeof(f32);
     for(u32 i = 0; i < vertFloatSize; i++){
         vdat[i] = vertices[i];
     }
@@ -631,7 +631,7 @@ static void renderGame(GameState* state){
 
 static void resetGame(GameState* state){
     state->mode = GameMode::GAME_MODE_PLAYING;
-    state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
+    state->clearColor = Vector4(0, 0, 0, 1);
     state->score = 0;
     state->gameTime = 0;
 }
@@ -665,8 +665,7 @@ static void initializeGameState(GameState* state){
     state->light.position = Vector3(5, 100, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
-    state->clearColor = Vector4(0.3, 0.5, 0.8, 1);
-    state->gameResolution = Vector2(800, 450);
+    state->clearColor = Vector4(0, 0, 0, 1);
 
     state->player.forwardXZ = Vector2(0, 1);
     state->player.turnAmount = 0;
@@ -785,18 +784,6 @@ extern "C" void updateGameState(GameState* state){
                 updateTerrain(state, (f32*)state->storage.tempMemoryBuffer);
                 updateTexturedMeshVertices(state, &state->terrain.mesh, (f32*)state->storage.tempMemoryBuffer, 256*256*8*sizeof(f32));
                 state->osFunctions.updateTexture2DPixels(&state->terrain.mesh.texture, state->terrain.pixels, 256 * 256 * 4);
-                // Matrix4* im = state->instanceMatrixPointer;
-                // for(u32 i = 0; i < 256; i++){
-                //     im[i] = Matrix4(1);
-                //     s32 px = (randomU32() % 256) - 128;
-                //     s32 pz = (randomU32() % 256) - 128;
-                //     s32 py = getVerticalPositionInTerrain(&state->terrain, Vector2(px, pz));
-                //     Vector3 pos(px, py, pz);
-                //     Vector3 scale(1);
-                //     Quaternion q;
-                //     rotate(&q, Vector3(0, 1, 0), randomF32() * PI);
-                //     im[i] = buildModelMatrix(pos, scale, q);
-                // }
             }
 
             debugPrint(state, "Length: %f", len);
@@ -846,7 +833,6 @@ extern "C" void updateGameState(GameState* state){
         if(state->mode == GameMode::GAME_MODE_DEBUG){
             state->mode = GameMode::GAME_MODE_PLAYING;
         }else{
-            initializeGameState(state);
             state->mode = GameMode::GAME_MODE_DEBUG;
         }
     }

@@ -1,13 +1,12 @@
 FEATURE:
-instance rendering
 mouse picking
 shadow mapping
+set canvas items position and scale by screen percentage
+dynamically change game resolution
 improve lighting
 import fonts from .ttf .otf
 
 BUG FIX:
-make text and canvas positioning scale with window
-handle updating resolution on window resize
 improve default skybox texture
 
 OPTIMIZATION:
