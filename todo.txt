@@ -2,7 +2,6 @@ FEATURE:
 mouse picking
 shadow mapping
 set canvas items position and scale by screen percentage
-dynamically change game resolution
 improve lighting
 import fonts from .ttf .otf
 

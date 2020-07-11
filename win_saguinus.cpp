@@ -2,8 +2,8 @@
 
 #include "win_saguinus.h"
 
-static u32 defaultResolutionWidth = 1200;
-static u32 defaultResolutionHeight = 675;
+static u32 defaultResolutionWidth = 256;
+static u32 defaultResolutionHeight = 144;
 static u32 windowWidth = 1200;
 static u32 windowHeight = 675;
 static s32 halfWindowWidth = windowWidth * 0.5;
@@ -1153,6 +1153,109 @@ static AudioEmitter createAudioEmitter(){
     return ae;
 }
 
+static void changeResolution(u32 width, u32 height){
+    renderTargetView->Release();
+    depthStencilView->Release();
+
+    swapChain->ResizeBuffers(1, width, height, DXGI_FORMAT_UNKNOWN, 0);
+
+    ID3D11Texture2D* backBuffer;
+    HRESULT hr = swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**) &backBuffer);
+    checkError(hr, "Error initializing back buffer");
+    D3D11_TEXTURE2D_DESC backBufferDescriptor;
+    backBuffer->GetDesc(&backBufferDescriptor);
+
+    hr = d3d11Device->CreateRenderTargetView(backBuffer, 0, &renderTargetView);
+    checkError(hr, "Error creating render target view");
+    backBuffer->Release();
+    
+    ID3D11Texture2D* depthTexture = 0;
+    D3D11_TEXTURE2D_DESC depthTexDesc = {};
+    depthTexDesc.Width = width;
+    depthTexDesc.Height = height;
+    depthTexDesc.MipLevels = 1;
+    depthTexDesc.ArraySize = 1;
+    depthTexDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthTexDesc.SampleDesc.Count = 1;
+    depthTexDesc.SampleDesc.Quality = 0;
+    depthTexDesc.Usage = D3D11_USAGE_DEFAULT;
+    depthTexDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthTexDesc.CPUAccessFlags = 0;
+    depthTexDesc.MiscFlags = 0;
+    hr = d3d11Device->CreateTexture2D(&depthTexDesc, 0, &depthTexture);
+    checkError(hr, "Error creating depth texture");
+
+    D3D11_DEPTH_STENCIL_DESC depthStenDesc = {};
+    depthStenDesc.DepthEnable = true;
+    depthStenDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    depthStenDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+    ID3D11DepthStencilState* depthStencilState;
+    d3d11Device->CreateDepthStencilState(&depthStenDesc, &depthStencilState);
+
+    d3d11Context->OMSetDepthStencilState(depthStencilState, 1);
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC depthStenViewDesc = {};
+    depthStenViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStenViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    depthStenViewDesc.Texture2D.MipSlice = 0;
+
+    hr = d3d11Device->CreateDepthStencilView(depthTexture,  &depthStenViewDesc, &depthStencilView);
+    checkError(hr, "Error creating depth stencil view texture");
+    depthTexture->Release();
+
+    D3D11_VIEWPORT viewPort = {};
+
+    if(windowWidth < width || windowHeight < height){
+        s32 screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        s32 screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        s32 sx = (screenWidth >> 1) - (width >> 1);
+        s32 sy = (screenHeight >> 1) - (height >> 1);
+        SetWindowPos(GetActiveWindow(), HWND_TOPMOST, sx, sy, windowWidth, windowHeight, 0);
+
+        windowWidth = width;
+        windowHeight = height;
+        halfWindowWidth = windowWidth >> 1;
+        halfWindowHeight = windowHeight >> 1;
+        gameState->windowDimenstion.x = windowWidth;
+        gameState->windowDimenstion.y = windowHeight;
+        screenCenter.x = halfWindowWidth;
+        screenCenter.y = halfWindowHeight;
+        ClientToScreen(GetActiveWindow(), &screenCenter);
+   
+        if(windowWidth / windowHeight >= aspectRatio){
+            viewPort.Height = windowHeight;
+            viewPort.Width = windowHeight * aspectRatio;
+        }else{
+            viewPort.Height = (windowWidth / aspectRatio);
+            viewPort.Width = windowWidth;
+        }
+
+        viewPort.TopLeftX = (windowWidth - viewPort.Width) * 0.5;
+        viewPort.TopLeftY = (windowHeight - viewPort.Height) * 0.5;
+
+    }else{
+        f32 xrat = (f32)defaultResolutionWidth / (f32)windowWidth;
+        f32 yrat = (f32)defaultResolutionHeight / (f32)windowHeight;
+
+        if(windowWidth / windowHeight >= aspectRatio){
+            viewPort.Height = windowHeight * yrat;
+            viewPort.Width = windowHeight * aspectRatio * xrat;
+        }else{
+            viewPort.Height = (windowWidth / aspectRatio) * yrat;
+            viewPort.Width = windowWidth * xrat;
+        }
+
+        viewPort.TopLeftX = ((windowWidth * xrat) - viewPort.Width) * 0.5;
+        viewPort.TopLeftY = ((windowHeight * yrat) - viewPort.Height) * 0.5;
+    }
+
+    viewPort.MinDepth = 0;
+    viewPort.MaxDepth = 1;
+    d3d11Context->RSSetViewports(1, &viewPort);
+    d3d11Context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
         case WM_QUIT:
@@ -1320,14 +1423,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
     d3d11Context->RSSetViewports(1, &viewPort);
 
-    ID3D11RenderTargetView* renderTargetView;
     hr = d3d11Device->CreateRenderTargetView(backBuffer, 0, &renderTargetView);
     checkError(hr, "Error creating render target view");
+    backBuffer->Release();
     
     ID3D11Texture2D* depthTexture = 0;
     D3D11_TEXTURE2D_DESC depthTexDesc = {};
-    depthTexDesc.Width = windowWidth;
-    depthTexDesc.Height = windowHeight;
+    depthTexDesc.Width = defaultResolutionWidth;
+    depthTexDesc.Height = defaultResolutionHeight;
     depthTexDesc.MipLevels = 1;
     depthTexDesc.ArraySize = 1;
     depthTexDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -1345,7 +1448,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     depthStenDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     depthStenDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 
-    ID3D11DepthStencilState * depthStencilState;
+    ID3D11DepthStencilState* depthStencilState;
     d3d11Device->CreateDepthStencilState(&depthStenDesc, &depthStencilState);
 
     d3d11Context->OMSetDepthStencilState(depthStencilState, 1);
@@ -1355,9 +1458,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     depthStenViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
     depthStenViewDesc.Texture2D.MipSlice = 0;
 
-    ID3D11DepthStencilView* depthStencilView;
     hr = d3d11Device->CreateDepthStencilView(depthTexture,  &depthStenViewDesc, &depthStencilView);
     checkError(hr, "Error creating depth stencil view texture");
+    depthTexture->Release();
 
     D3D11_RASTERIZER_DESC rasterizerDesc = {};
     rasterizerDesc.FillMode = D3D11_FILL_SOLID;
@@ -1499,6 +1602,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
             gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_D_RIGHT] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
             gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_START] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_START;
             gameState->gamepad1.buttons[gameState->inputCodes.GAMEPAD_BACK] = gamepad1.state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK;
+        }
+
+        if(keyPressedOnce(gameState, gameState->inputCodes.KEY_F1)){
+            defaultResolutionWidth += 16;
+            defaultResolutionHeight += 9;
+            changeResolution(defaultResolutionWidth, defaultResolutionHeight);
         }
 
         if(keyPressedOnce(gameState, gameState->inputCodes.KEY_P)){
