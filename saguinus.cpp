@@ -662,7 +662,7 @@ static void initializeGameState(GameState* state){
     state->camera.projection = createPerspectiveProjection(70.0, (f32)state->windowDimenstion.x / (f32)state->windowDimenstion.y, 0.001, 1000.0);
 
     state->light = PointLight();
-    state->light.position = Vector3(5, 100, 15);
+    state->light.position = Vector3(5, 10, 15);
     state->light.diffuse = Vector3(1, 1, 1);
 
     state->clearColor = Vector4(0, 0, 0, 1);
@@ -736,8 +736,8 @@ static void initializeGameState(GameState* state){
     Matrix4* im = state->instanceMatrixPointer;
     for(u32 i = 0; i < 256; i++){
         im[i] = Matrix4(1);
-        s32 px = (randomU32() % 256) - 128;
-        s32 pz = (randomU32() % 256) - 128;
+        s32 px = ((i % 16) - 8) * 5;
+        s32 pz = ((i / 16) - 8) * 5;
          s32 py = getVerticalPositionInTerrain(&state->terrain, Vector2(px, pz));
         Vector3 pos(px, py, pz);
         Vector3 scale(1);
@@ -764,7 +764,7 @@ extern "C" void updateGameState(GameState* state){
     state->mousePositionDelta = Vector2(state->mousePosition.x - state->windowDimenstion.x * 0.5, 
                                         state->mousePosition.y - state->windowDimenstion.y * 0.5);
 
-    addTexturedMeshToInstanceBuffer(state, &state->instanceTestMesh, 10);
+    addTexturedMeshToInstanceBuffer(state, &state->instanceTestMesh, 256);
 
     switch (state->mode) {
         case GameMode::GAME_MODE_DEBUG : { 

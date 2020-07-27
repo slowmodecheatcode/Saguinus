@@ -14,6 +14,29 @@
 #define DEBUG_PRINT_SIZE 2.3
 #define DEBUG_PRINT_Y_MOVEMENT 25
 
+struct ShadowmapGenerator {
+    struct VertexConstants {
+        Matrix4 modelMatrix;
+        Matrix4 cameraMatrix;
+    } vertexConstants;
+    Matrix4 shadowProjection;
+    Matrix4 shadowView;
+    ID3D11Texture2D* shadowmap;
+    ID3D11DepthStencilView* shadowDepthView;
+    ID3D11ShaderResourceView* shadowResourceView;
+    ID3D11SamplerState* shadowSamplerState;
+    ID3D11RasterizerState* shadowRasterState;    
+    ID3D11VertexShader* vertexShader;
+    ID3D11VertexShader* vertexInstanceShader;
+    ID3D11PixelShader* pixelShader;
+    ID3D11InputLayout* inputLayout;
+    ID3D11Buffer* vertexConstBuffer;
+    D3D11_VIEWPORT viewport;
+
+    u32 shadowmapWidth;
+    u32 shadowmapHeight;
+};
+
 struct TexturedMeshRenderer {
     struct VertexConstants {
         Matrix4 modelMatrix;
@@ -138,6 +161,7 @@ static IXAudio2MasteringVoice* XAudio2MasterVoice;
 
 static Font debugFont;
 
+static ShadowmapGenerator shadowmapGenerator;
 static TexturedMeshRenderer texturedMeshRenderer;
 static CanvasRenderer canvasRenderer;
 static DebugRenderer debugRenderer;

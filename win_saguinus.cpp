@@ -2,8 +2,8 @@
 
 #include "win_saguinus.h"
 
-static u32 defaultResolutionWidth = 256;
-static u32 defaultResolutionHeight = 144;
+static u32 defaultResolutionWidth = 1200;
+static u32 defaultResolutionHeight = 675;
 static u32 windowWidth = 1200;
 static u32 windowHeight = 675;
 static s32 halfWindowWidth = windowWidth * 0.5;
@@ -291,6 +291,101 @@ static TextureCube createTextureCube(const s8* fileName, u32 bytesPerPixel){
     fileData += 4;
     TextureCube tex = createTextureCube(fileData, width, height, bytesPerPixel);
     return tex;
+}
+
+static void initializeShadowmapGenerator(){
+    shadowmapGenerator.shadowmapWidth = 1024;
+    shadowmapGenerator.shadowmapHeight = 1024;
+
+    ID3DBlob* vertexBlob; 
+    ID3DBlob* vertexInstanceBlob; 
+    ID3DBlob* pixelBlob; 
+    ID3DBlob* errBlob = 0;               
+    D3DCompileFromFile(L"shadowmap_shader.hlsl", 0, 0, "vertexMain", "vs_5_0", 0, 0, &vertexBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"shadowmap_shader.hlsl", 0, 0, "vertexInstanceMain", "vs_5_0", 0, 0, &vertexInstanceBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    D3DCompileFromFile(L"shadowmap_shader.hlsl", 0, 0, "pixelMain", "ps_5_0", 0, 0, &pixelBlob, &errBlob);
+    if(errBlob != 0) MessageBox(0, (LPCSTR)errBlob->GetBufferPointer(), "ERROR", 0);
+    HRESULT hr = d3d11Device->CreateVertexShader(vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), 0, &shadowmapGenerator.vertexShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex shader", "ERROR", 0);
+    hr = d3d11Device->CreateVertexShader(vertexInstanceBlob->GetBufferPointer(), vertexInstanceBlob->GetBufferSize(), 0, &shadowmapGenerator.vertexInstanceShader);
+    if(errBlob != 0) MessageBox(0, "Error creating vertex instance shader", "ERROR", 0);
+    hr = d3d11Device->CreatePixelShader(pixelBlob->GetBufferPointer(), pixelBlob->GetBufferSize(), 0, &shadowmapGenerator.pixelShader);
+    if(errBlob != 0) MessageBox(0, "Error creating pixel shader", "ERROR", 0);
+
+    // D3D11_INPUT_ELEMENT_DESC layoutDesc [] = {
+    //     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    // };
+    
+    // hr = d3d11Device->CreateInputLayout(layoutDesc, 1, vertexBlob->GetBufferPointer(), vertexBlob->GetBufferSize(), &shadowmapGenerator.inputLayout);
+    // checkError(hr, "Could not create input layout");
+
+    D3D11_TEXTURE2D_DESC shadowMapDesc = {};
+    shadowMapDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+    shadowMapDesc.MipLevels = 1;
+    shadowMapDesc.ArraySize = 1;
+    shadowMapDesc.SampleDesc.Count = 1;
+    shadowMapDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_DEPTH_STENCIL;
+    shadowMapDesc.Height = shadowmapGenerator.shadowmapWidth;
+    shadowMapDesc.Width = shadowmapGenerator.shadowmapHeight;
+
+    hr = d3d11Device->CreateTexture2D(&shadowMapDesc, 0, &shadowmapGenerator.shadowmap);
+    checkError(hr, "Error creating shadowmap texture");
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+    depthStencilViewDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    depthStencilViewDesc.Texture2D.MipSlice = 0;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc = {};
+    shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    shaderResourceViewDesc.Format = DXGI_FORMAT_R32_FLOAT;
+    shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+    hr = d3d11Device->CreateDepthStencilView(shadowmapGenerator.shadowmap, &depthStencilViewDesc, &shadowmapGenerator.shadowDepthView);
+    checkError(hr, "Error creating shadowmap depth stencil view");
+    hr = d3d11Device->CreateShaderResourceView(shadowmapGenerator.shadowmap, &shaderResourceViewDesc, &shadowmapGenerator.shadowResourceView);
+    checkError(hr, "Error creating shadowmap shader resource view");
+
+    D3D11_SAMPLER_DESC comparisonSamplerDesc = {};
+    comparisonSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+    comparisonSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+    comparisonSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+    comparisonSamplerDesc.BorderColor[0] = 1.0f;
+    comparisonSamplerDesc.BorderColor[1] = 1.0f;
+    comparisonSamplerDesc.BorderColor[2] = 1.0f;
+    comparisonSamplerDesc.BorderColor[3] = 1.0f;
+    comparisonSamplerDesc.MinLOD = 0.f;
+    comparisonSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    comparisonSamplerDesc.MipLODBias = 0.f;
+    comparisonSamplerDesc.MaxAnisotropy = 0;
+    comparisonSamplerDesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+    comparisonSamplerDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+
+    hr = d3d11Device->CreateSamplerState(&comparisonSamplerDesc, &shadowmapGenerator.shadowSamplerState);
+    checkError(hr, "Error creating shadowmap sampler state");
+
+    D3D11_RASTERIZER_DESC drawingRenderStateDesc = {};
+    drawingRenderStateDesc.CullMode = D3D11_CULL_BACK;
+    drawingRenderStateDesc.FillMode = D3D11_FILL_SOLID;
+    drawingRenderStateDesc.DepthClipEnable = true; // Feature level 9_1 requires DepthClipEnable == true
+    hr = d3d11Device->CreateRasterizerState(&drawingRenderStateDesc, &shadowmapGenerator.shadowRasterState);
+    checkError(hr, "Error creating shadowmap rasterizer state");
+
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.ByteWidth = sizeof(shadowmapGenerator.vertexConstants);
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    d3d11Device->CreateBuffer(&bufferDesc, 0, &shadowmapGenerator.vertexConstBuffer);
+
+    shadowmapGenerator.viewport.TopLeftX = 0;
+    shadowmapGenerator.viewport.TopLeftY = 0;
+    shadowmapGenerator.viewport.Width = shadowmapGenerator.shadowmapWidth;
+    shadowmapGenerator.viewport.Height = shadowmapGenerator.shadowmapHeight;
+    shadowmapGenerator.viewport.MinDepth = 0;
+    shadowmapGenerator.viewport.MaxDepth = 1;
+
+    shadowmapGenerator.shadowProjection = createPerspectiveProjection(70.0, 1, 0.001, 100.0);
 }
 
 static void initializeTexturedMeshRenderer(){
@@ -947,6 +1042,45 @@ static void renderAnimatedMesh(AnimatedMesh* mesh, Vector3 position, Vector3 sca
     addTexturedMeshToBuffer(gameState, &mesh->mesh, position, scale, orientation);
 }
 
+static void addMeshesToShadowBuffer(TexturedMeshBuffer* buffer, TexturedMeshInstanceBuffer* iBuffer, Vector3 lightPosition, Vector3 shadowTarget){
+    d3d11Context->OMSetRenderTargets(0, 0, shadowmapGenerator.shadowDepthView);
+
+    d3d11Context->RSSetState(shadowmapGenerator.shadowRasterState);
+    d3d11Context->RSSetViewports(1, &shadowmapGenerator.viewport);
+
+    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
+
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+    d3d11Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
+
+    d3d11Context->VSSetShader(shadowmapGenerator.vertexShader, 0, 0);
+
+    d3d11Context->VSSetConstantBuffers(0, 1, &shadowmapGenerator.vertexConstBuffer);
+
+    d3d11Context->PSSetShader(shadowmapGenerator.pixelShader, 0, 0);
+
+    lookAt(&shadowmapGenerator.shadowView, lightPosition, shadowTarget);
+    shadowmapGenerator.vertexConstants.cameraMatrix = shadowmapGenerator.shadowProjection * shadowmapGenerator.shadowView;
+
+    u32 total = buffer->totalMeshes;
+    for(u32 i = 0; i < total; i++){
+        shadowmapGenerator.vertexConstants.modelMatrix = buildModelMatrix(buffer->positions[i], buffer->scales[i], buffer->orientations[i]);
+        d3d11Context->UpdateSubresource(shadowmapGenerator.vertexConstBuffer, 0, 0, &shadowmapGenerator.vertexConstants, 0, 0);
+        d3d11Context->DrawIndexed(buffer->indexCounts[i], buffer->indexOffsets[i], buffer->indexAddons[i]);
+    }
+
+    u32 stride = sizeof(f32) * 16;
+    u32 offset = 0;
+    d3d11Context->IASetVertexBuffers(1, 1, &texturedMeshRenderer.instanceVertexBuffer, &stride, &offset);
+    d3d11Context->VSSetShader(shadowmapGenerator.vertexInstanceShader, 0, 0);
+    total = iBuffer->totalMeshes;
+    for(u32 i = 0; i < total; i++){
+        d3d11Context->DrawIndexedInstanced(iBuffer->indexCounts[i], iBuffer->instanceCounts[i], iBuffer->indexOffsets[i], iBuffer->indexAddons[i], 0);
+    }
+}
+
 static void updateTexturedMeshVertices(TexturedMesh* mesh, f32* vertices, u32 vertSize){
     D3D11_MAPPED_SUBRESOURCE vertData;            
     d3d11Context->Map(texturedMeshRenderer.vertexBuffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &vertData);
@@ -1507,6 +1641,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
     d3d11Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
+    initializeShadowmapGenerator();
     initializeCanvasRenderer();
     initializeTexturedMeshRenderer();
     initializeDebugRenderer();
@@ -1640,13 +1775,22 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
 
         d3d11Context->ClearRenderTargetView(renderTargetView, gameState->clearColor.v);
         d3d11Context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH, 1.0, 0);
+        d3d11Context->ClearDepthStencilView(shadowmapGenerator.shadowDepthView, D3D11_CLEAR_DEPTH, 1.0, 0);
         
         //rendering is done here
+        addMeshesToShadowBuffer(&gameState->txtdMeshBuffer, &gameState->txtdMeshInstBuffer, gameState->light.position, Vector3(0));
+        d3d11Context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
+        d3d11Context->RSSetState(rasterizerState);
+        d3d11Context->RSSetViewports(1, &viewPort);
+
+        Texture2D st;
+        st.texture = shadowmapGenerator.shadowResourceView;
+        addQuadToBuffer(gameState, Vector2(0), Vector2(500), st);
+
         renderSkybox(&gameState->camera);
         renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
         renderTexturedMeshInstanceBuffer(&gameState->txtdMeshInstBuffer, &gameState->camera, &gameState->light);
         renderDebugBuffer(&gameState->debugBuffer, &gameState->camera);
-
 
         renderCanvasBuffer(&gameState->canvasBuffer);
         

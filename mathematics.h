@@ -586,3 +586,24 @@ static void rotate(Quaternion* q, Vector3 axis, f32 angle){
     normalize(q);
 }
 
+static void lookAt(Matrix4* mat, Vector3 position, Vector3 target, Vector3 u = Vector3(0, 1, 0)){
+    Vector3 forward = normalOf(target - position);
+    Vector3 right = normalOf(cross(forward, normalOf(u)));
+    Vector3 up = normalOf(cross(right, forward));
+    mat->m2[0][0] = right.x;
+    mat->m2[0][1] = up.x;
+    mat->m2[0][2] = -forward.x;
+    mat->m2[0][3] = 0;
+    mat->m2[1][0] = right.y;
+    mat->m2[1][1] = up.y;
+    mat->m2[1][2] = -forward.y;
+    mat->m2[1][3] = 0;
+    mat->m2[2][0] = right.z;
+    mat->m2[2][1] = up.z;
+    mat->m2[2][2] = -forward.z;
+    mat->m2[2][3] = 0;
+    mat->m2[3][0] = dot(-right, position);
+    mat->m2[3][1] = dot(-up, position);
+    mat->m2[3][2] = dot(forward, position);
+    mat->m2[3][3] = 1;
+}
