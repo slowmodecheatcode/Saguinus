@@ -1,6 +1,5 @@
 FEATURE:
 mouse picking
-shadow mapping
 set canvas items position and scale by screen percentage
 improve lighting
 import fonts from .ttf .otf
@@ -16,6 +15,7 @@ use mapping to update constant buffers
 optimize input
 replace math.h's trig functions
 look into getting rid of padding variables in constant buffer structs
+improve shadowgeneration and rendering
 
 CLEANUP:
 organize mathematics.h

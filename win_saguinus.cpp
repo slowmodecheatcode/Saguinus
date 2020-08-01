@@ -385,7 +385,7 @@ static void initializeShadowmapGenerator(){
     shadowmapGenerator.viewport.MinDepth = 0;
     shadowmapGenerator.viewport.MaxDepth = 1;
 
-    shadowmapGenerator.shadowProjection = createPerspectiveProjection(70.0, 1, 0.001, 100.0);
+    shadowmapGenerator.shadowProjection = createPerspectiveProjection(100.0, 1, 0.001, 100.0);
 }
 
 static void initializeTexturedMeshRenderer(){
@@ -1151,36 +1151,6 @@ static void renderCanvasBuffer(CanvasBuffer* buffer){
     buffer->debugPrinterY = buffer->debugPrinterStartY;
 }
 
-static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, PointLight* light){
-    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
-    d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
-    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
-    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
-    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
-    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
-    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
-    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
-
-    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
-
-    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
-    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
-    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
-    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
-    texturedMeshRenderer.pixelConstants.specular = light->specular;
-    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
-
-    u32 totalMeshes = tmb->totalMeshes;
-    for(u32 i = 0; i < totalMeshes; i++){
-        d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&tmb->textures[i].texture);
-        texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(tmb->positions[i], tmb->scales[i], tmb->orientations[i]);
-        d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
-
-        d3d11Context->DrawIndexed(tmb->indexCounts[i], tmb->indexOffsets[i], tmb->indexAddons[i]);
-    }
-    tmb->totalMeshes = 0;
-}
-
 static void renderTexturedMeshInstance(TexturedMesh* tmb, Camera* camera, PointLight* light, u32 totalInstances){
     d3d11Context->PSSetSamplers(0, 1, &linearSampler);
     d3d11Context->VSSetShader(texturedMeshRenderer.instanceVertexShader, 0, 0);
@@ -1195,6 +1165,7 @@ static void renderTexturedMeshInstance(TexturedMesh* tmb, Camera* camera, PointL
     d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
 
     texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+    texturedMeshRenderer.vertexConstants.shadowMatrix = shadowmapGenerator.vertexConstants.cameraMatrix;
 
     texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
     texturedMeshRenderer.pixelConstants.lightPosition = light->position;
@@ -1204,11 +1175,44 @@ static void renderTexturedMeshInstance(TexturedMesh* tmb, Camera* camera, PointL
     d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
 
 
-    d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&tmb->texture.texture);
+    d3d11Context->PSSetShaderResources(1, 1, (ID3D11ShaderResourceView**)&tmb->texture.texture);
     //d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
 
     d3d11Context->DrawIndexedInstanced(tmb->indexCount, totalInstances, tmb->indexOffset, tmb->indexAddon, 0);
     
+}
+
+static void renderTexturedMeshBuffer(TexturedMeshBuffer* tmb, Camera* camera, PointLight* light){
+    d3d11Context->PSSetSamplers(0, 1, &linearSampler);
+    d3d11Context->VSSetShader(texturedMeshRenderer.vertexShader, 0, 0);
+    d3d11Context->PSSetShader(texturedMeshRenderer.pixelShader, 0, 0);
+    d3d11Context->IASetInputLayout(texturedMeshRenderer.inputLayout);
+    d3d11Context->IASetVertexBuffers(0, 1, &texturedMeshRenderer.vertexBuffer, &texturedMeshRenderer.vertexStride, &texturedMeshRenderer.vertexOffset);
+    d3d11Context->IASetIndexBuffer(texturedMeshRenderer.indexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    d3d11Context->VSSetConstantBuffers(0, 1, &texturedMeshRenderer.vertexConstBuffer);
+    d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
+
+    texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+    texturedMeshRenderer.vertexConstants.shadowMatrix = shadowmapGenerator.vertexConstants.cameraMatrix;
+
+    texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
+    texturedMeshRenderer.pixelConstants.lightPosition = light->position;
+    texturedMeshRenderer.pixelConstants.ambient = light->ambient;
+    texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
+    texturedMeshRenderer.pixelConstants.specular = light->specular;
+    d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
+
+    d3d11Context->PSSetShaderResources(1, 1, &shadowmapGenerator.shadowResourceView);
+
+    u32 totalMeshes = tmb->totalMeshes;
+    for(u32 i = 0; i < totalMeshes; i++){
+        d3d11Context->PSSetShaderResources(0, 1, (ID3D11ShaderResourceView**)&tmb->textures[i].texture);
+        texturedMeshRenderer.vertexConstants.modelMatrix = buildModelMatrix(tmb->positions[i], tmb->scales[i], tmb->orientations[i]);
+        d3d11Context->UpdateSubresource(texturedMeshRenderer.vertexConstBuffer, 0, 0, &texturedMeshRenderer.vertexConstants, 0, 0);
+
+        d3d11Context->DrawIndexed(tmb->indexCounts[i], tmb->indexOffsets[i], tmb->indexAddons[i]);
+    }
+    tmb->totalMeshes = 0;
 }
 
 static void renderTexturedMeshInstanceBuffer(TexturedMeshInstanceBuffer* tmb, Camera* camera, PointLight* light){
@@ -1225,6 +1229,8 @@ static void renderTexturedMeshInstanceBuffer(TexturedMeshInstanceBuffer* tmb, Ca
     d3d11Context->PSSetConstantBuffers(0, 1, &texturedMeshRenderer.pixelConstBuffer);
 
     texturedMeshRenderer.vertexConstants.cameraMatrix = camera->projection * camera->view;
+    texturedMeshRenderer.vertexConstants.shadowMatrix = shadowmapGenerator.vertexConstants.cameraMatrix;
+
 
     texturedMeshRenderer.pixelConstants.cameraPosition = camera->position;
     texturedMeshRenderer.pixelConstants.lightPosition = light->position;
@@ -1232,6 +1238,8 @@ static void renderTexturedMeshInstanceBuffer(TexturedMeshInstanceBuffer* tmb, Ca
     texturedMeshRenderer.pixelConstants.diffuse = light->diffuse;
     texturedMeshRenderer.pixelConstants.specular = light->specular;
     d3d11Context->UpdateSubresource(texturedMeshRenderer.pixelConstBuffer, 0, 0, &texturedMeshRenderer.pixelConstants, 0, 0);
+
+    d3d11Context->PSSetShaderResources(1, 1, &shadowmapGenerator.shadowResourceView);
 
     u32 totalMeshes = tmb->totalMeshes;
     for(u32 i = 0; i < totalMeshes; i++){

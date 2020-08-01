@@ -41,6 +41,7 @@ struct TexturedMeshRenderer {
     struct VertexConstants {
         Matrix4 modelMatrix;
         Matrix4 cameraMatrix;
+        Matrix4 shadowMatrix;
     } vertexConstants;
 
     struct PixelConstants {

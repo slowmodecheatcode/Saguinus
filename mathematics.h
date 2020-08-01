@@ -418,6 +418,7 @@ static Matrix4 multiply(Matrix4& m1, Matrix4& m2){
 }
 
 static Matrix4 createPerspectiveProjection(f32 fov, f32 aspect, f32 znear, f32 zfar){
+    fov = (TAU * fov) / 360.0;
     Matrix4 m;
     m.m[0] = 1 / (aspect * tan(fov / 2.0));
     m.m[1] = 0;
