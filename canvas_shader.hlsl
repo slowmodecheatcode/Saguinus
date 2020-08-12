@@ -42,14 +42,11 @@ float linearize(float f, float np, float fp){
 }
 
 float4 pixelMain(PixelInput input) : SV_TARGET {
-    float c = tex.Sample(texSampler, input.uvCoordinates).r;
-    float d = linearize(c, 0.001, 100.0) / 100.0;
-    return float4(d, d, d, 1);
-    // float4 color = tex.Sample(texSampler, input.uvCoordinates);
+    float4 color = tex.Sample(texSampler, input.uvCoordinates);
 
-    // float m = input.text;
-    // float mm = 1 - m;
+    float m = input.text;
+    float mm = 1 - m;
 
-    // return float4(quadColor.rgb * max(m, color.rgb), quadColor.a * color[(int)(mm * 3)]);
+    return float4(quadColor.rgb * max(m, color.rgb), quadColor.a * color[(int)(mm * 3)]);
 }
 

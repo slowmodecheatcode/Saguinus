@@ -368,6 +368,17 @@ static void updateCameraWithGamepad(GameState* state){
     }
 }
 
+static bool mouseClickedOnce(GameState* state, u32 button){
+    bool* mouseInputs = state->mouseInputs;
+    if(mouseInputs[button] && !state->mouseButtonTracking[button]){
+        state->mouseButtonTracking[button] = true;
+        return true;
+    }else if(!mouseInputs[button]){
+        state->mouseButtonTracking[button] = false;
+    }
+    return false;
+}
+
 static bool keyPressedOnce(GameState* state, u32 key){
     bool* keyInputs = state->keyInputs;
     if(keyInputs[key] && !state->keyTracking[key]){
@@ -776,6 +787,17 @@ extern "C" void updateGameState(GameState* state){
             
             break;
         }
+        case GameMode::GAME_MODE_EDIT : { 
+            updateCameraWithMouse(state);
+            updateCameraWithKeyboard(state);
+            updateCameraWithGamepad(state);
+            updateCameraView(&state->camera);
+            renderGame(state);
+
+            
+            
+            break;
+        }
         case GameMode::GAME_MODE_PLAYING : {
             updatePlayer(state);
 
@@ -835,6 +857,31 @@ extern "C" void updateGameState(GameState* state){
         }else{
             state->mode = GameMode::GAME_MODE_DEBUG;
         }
+    }
+
+    if(keyPressedOnce(state, c->KEY_N)){
+        if(state->mode != GameMode::GAME_MODE_EDIT){
+            state->mode = GameMode::GAME_MODE_EDIT;
+        }
+    }
+
+    if(mouseClickedOnce(state, MOUSE_BUTTON_LEFT)){
+        f32 rayX = map(state->mousePosition.x, 0, state->windowDimenstion.x, -1, 1);
+        f32 rayY = map(state->mousePosition.y, 0, state->windowDimenstion.y, -1, 1);
+
+        Vector4 boxRay(rayX, rayY, -1, 0);
+        boxRay = inverseOf(&cam->projection) * boxRay;
+        boxRay = Vector4(boxRay.x, boxRay.y, -1, 0);
+        boxRay = normalOf(inverseOf(&cam->view) * boxRay);
+
+        u32 t = state->totalRays;
+        state->rayStart[t] = cam->position;
+        state->rayEnd[t] = cam->position + (Vector3(boxRay.x, boxRay.y, boxRay.z) * 1000);
+        state->totalRays++;
+    }
+
+    for(u32 i = 0; i < state->totalRays; i++){
+        debugLine(state, state->rayStart[i], state->rayEnd[i], Vector4(1, 0, 0.1, 1), 0.25);
     }
 
 

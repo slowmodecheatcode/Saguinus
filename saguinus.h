@@ -22,6 +22,7 @@ enum GameMode {
     GAME_MODE_PLAYING,
     GAME_MODE_OVER,
     GAME_MODE_DEBUG,
+    GAME_MODE_EDIT,
     
     GAME_MODE_TOTAL,
 };
@@ -298,6 +299,10 @@ struct GameState {
     DebugBuffer debugBuffer;
     TexturedMeshBuffer txtdMeshBuffer;
     TexturedMeshInstanceBuffer txtdMeshInstBuffer;
+
+    Vector3 rayStart[256];
+    Vector3 rayEnd[256];
+    u32 totalRays;
 
     Font* currentFont;
 

@@ -1451,9 +1451,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             f32 nmy = windowHeight - mousePosition.y;
             if(mousePosition.x != gameState->mousePosition.x || nmy != gameState->mousePosition.y){
                 gameState->mousePosition = Vector2(mousePosition.x, nmy);
-                gameState->updateCamera = true;          
-                SetCursorPos(screenCenter.x, screenCenter.y);
-                
+            
+                if(gameState->mode != GAME_MODE_EDIT){    
+                    gameState->updateCamera = true;      
+                    SetCursorPos(screenCenter.x, screenCenter.y);
+                }
             }
             
             break;
@@ -1505,6 +1507,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
+
     checkError(XAudio2Create(&XAudio2Pointer, 0, XAUDIO2_DEFAULT_PROCESSOR), "Could not initialize XAudio2");
     CoInitialize(0);
     checkError(XAudio2Pointer->CreateMasteringVoice(&XAudio2MasterVoice), "Could not create mastering voice");
@@ -1790,10 +1793,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR argv, int argc){
         d3d11Context->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
         d3d11Context->RSSetState(rasterizerState);
         d3d11Context->RSSetViewports(1, &viewPort);
-
-        Texture2D st;
-        st.texture = shadowmapGenerator.shadowResourceView;
-        addQuadToBuffer(gameState, Vector2(0), Vector2(500), st);
 
         renderSkybox(&gameState->camera);
         renderTexturedMeshBuffer(&gameState->txtdMeshBuffer, &gameState->camera, &gameState->light);
